@@ -1,1 +1,16 @@
-Some emacs utilities
+Some emacs utilities with clojure-style destructuring bind.
+
+	 (defn demo [a b [c d]] (list a b c d))
+	 (demo 1 2 (list 10 11)) -> (1 2 10 11)
+
+The binding also works with hashtables.
+
+	(defn demo [a b [:: c :x d :y]] (list a b c d))
+	(let ((a-table (tbl! :x 100 :y 110)))
+	  (demo 1 2 a-table)) -> (1 2 100 110)
+
+Most useful in the utils package may be a pair of functions for creating and manipulating hash tables.
+
+	 (tbl! :x 10 :y 11) ; creates a hash table with keys :x, :y and associated values
+	 (tbl a-table :x) ; returns the value at key :x
+
