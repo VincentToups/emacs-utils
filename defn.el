@@ -145,12 +145,21 @@
 		`(elt ,arg-nam ,i)))
 
 (defmacro* defn (name binders &body body)
-  (let* ((n-args (length binders))
-		 (args-sym (gensym))
-		 (exprs (generate-defn-exprs args-sym n-args)))
+  (let ((args-sym (gensym)))
 	`(defun ,name (&rest ,args-sym)
-	   (lexical-let* ,(mapcar (lambda (x) (coerce x 'list)) (handle-binding binders (cons 'list exprs)))
+	   (lexical-let* ,(mapcar 
+					  (lambda (x) (coerce x 'list)) 
+					  (handle-binding binders args-sym))
 		 ,@body))))
+
+(defmacro* fn (binders &body body)
+  (let ((args-sym (gensym)))
+	`(lambda (&rest ,args-sym)
+	   (lexical-let* ,(mapcar 
+					  (lambda (x) (coerce x 'list)) 
+					  (handle-binding binders args-sym))
+		 ,@body))))
+
 
 ; (defn test-f [a b [:: c :x d :y]] (list a b c d))
 ; (test-f 1 2 (tbl! :x 3 :y 4))
