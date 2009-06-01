@@ -144,21 +144,117 @@
   (loop for i from 0 below n collect
 		`(elt ,arg-nam ,i)))
 
-(defmacro* defn (name binders &body body)
-  (let ((args-sym (gensym)))
-	`(defun ,name (&rest ,args-sym)
-	   (lexical-let* ,(mapcar 
-					  (lambda (x) (coerce x 'list)) 
-					  (handle-binding binders args-sym))
-		 ,@body))))
+;; Old defn for posterity
+;; (defmacro* defn (name binders &body body)
+;;   (let ((args-sym (gensym)))
+;; 	`(defun ,name (&rest ,args-sym)
+;; 	   (lexical-let* ,(mapcar 
+;; 					  (lambda (x) (coerce x 'list)) 
+;; 					  (handle-binding binders args-sym))
+;; 		 ,@body))))
 
-(defmacro* fn (binders &body body)
+
+(defun has-&? (binder)
+  (member '& (coerce binder 'list)))
+; (has-&? [a b c & rest])
+(defun strip-& (binder)
+  (if (has-&? binder)
+	  (coerce 
+	   (loop for i from 0 below (- (length binder) 2) collect (elt binder i))
+	   'vector)
+	binder))
+; (strip-& [a b c & rest])
+
+(defun binder-arity (binder)
+  (list 
+   (length (strip-& binder))
+   (if (has-&? binder) '+more
+	 'exactly)))
+
+; (binder-arity [a b c & rest])
+
+(defun arity-match (n arity)
+  (if (eq (cadr arity) 'exactly)
+	  (= n (car arity))
+	(>= n (car arity))))
+
+; (arity-match 2 '(3 +more))
+
+(defmacro* defn (name &rest rest)
   (let ((args-sym (gensym)))
-	`(lambda (&rest ,args-sym)
-	   (lexical-let* ,(mapcar 
-					  (lambda (x) (coerce x 'list)) 
-					  (handle-binding binders args-sym))
-		 ,@body))))
+	(cond
+	 ((vectorp (car rest))
+	  (let ((binders (car rest))
+			(body (cdr rest)))
+		`(defun ,name (&rest ,args-sym)
+		   (lexical-let* ,(mapcar 
+						   (lambda (x) (coerce x 'list)) 
+						   (handle-binding binders args-sym))
+			 ,@body))))
+	 ((listp (car rest))	   ; set of different arity binders/bodies
+	  (let ((numargs (gensym)))
+		`(defun ,name (&rest ,args-sym) 
+		   (let ((,numargs (length ,args-sym)))
+			 (cond
+			  ,@(loop for pair in rest append
+					  (let ((binders (car pair))
+							(body (cdr pair)))
+						`(((arity-match ,numargs ',(binder-arity binders))
+						   (lexical-let* ,(mapcar 
+										   (lambda (x) (coerce x 'list)) 
+										   (handle-binding binders args-sym)) ,@body)))))))))))))
+
+(defmacro* fn (&rest rest)
+  (let ((args-sym (gensym)))
+	(cond
+	 ((vectorp (car rest))
+	  (let ((binders (car rest))
+			(body (cdr rest)))
+		`(lambda (&rest ,args-sym)
+		   (lexical-let* ,(mapcar 
+						   (lambda (x) (coerce x 'list)) 
+						   (handle-binding binders args-sym))
+			 ,@body))))
+	 ((listp (car rest))	   ; set of different arity binders/bodies
+	  (let ((numargs (gensym)))
+		`(lambda (&rest ,args-sym) 
+		   (let ((,numargs (length ,args-sym)))
+			 (cond
+			  ,@(loop for pair in rest append
+					  (let ((binders (car pair))
+							(body (cdr pair)))
+						`(((arity-match ,numargs ',(binder-arity binders))
+						   (lexical-let* ,(mapcar 
+										   (lambda (x) (coerce x 'list)) 
+										   (handle-binding binders args-sym)) ,@body)))))))))))))
+
+
+(defun binder->rest-forms (binder)
+  (let ((from-rest-on (member '& binder)))
+	(if from-rest-on
+		(list (elt 0 from-rest-on)
+			  (elt 1 from-rest-on))
+	  nil)))
+
+(defun check-seq-binder (binder)
+  (let ((n& (length (filter
+					 (lambda (x) (eq '& x))
+					 (coerce binder 'list)))))
+	(assert (or (= n& 0)
+				(= n& 1))
+			"Clojure-style binding forms cannot have more than one & expression"))
+  (let* ((rest-parts (member (lambda (x) 
+
+(defun check-binder (binder)
+  (case (binder->type binder)
+	(:seq (check-seq-binder binder))
+	(:tbl (check-tbl-binder binder))
+	(:symbol (symbolp? binder))))
+
+
+
+
+
 
 
 ; (defn test-f [a b [:: c :x d :y]] (list a b c d))
