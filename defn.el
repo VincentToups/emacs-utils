@@ -180,53 +180,45 @@
 
 ; (arity-match 2 '(3 +more))
 
-(defmacro* defn (name &rest rest)
-  (let ((args-sym (gensym)))
-	(cond
-	 ((vectorp (car rest))
-	  (let ((binders (car rest))
-			(body (cdr rest)))
-		`(defun ,name (&rest ,args-sym)
-		   (lexical-let* ,(mapcar 
-						   (lambda (x) (coerce x 'list)) 
-						   (handle-binding binders args-sym))
-			 ,@body))))
-	 ((listp (car rest))	   ; set of different arity binders/bodies
-	  (let ((numargs (gensym)))
-		`(defun ,name (&rest ,args-sym) 
-		   (let ((,numargs (length ,args-sym)))
-			 (cond
-			  ,@(loop for pair in rest append
-					  (let ((binders (car pair))
-							(body (cdr pair)))
-						`(((arity-match ,numargs ',(binder-arity binders))
-						   (lexical-let* ,(mapcar 
-										   (lambda (x) (coerce x 'list)) 
-										   (handle-binding binders args-sym)) ,@body)))))))))))))
+
+(setq currently-defining-defn 'lambda)
 
 (defmacro* fn (&rest rest)
-  (let ((args-sym (gensym)))
 	(cond
 	 ((vectorp (car rest))
-	  (let ((binders (car rest))
-			(body (cdr rest)))
-		`(lambda (&rest ,args-sym)
-		   (lexical-let* ,(mapcar 
-						   (lambda (x) (coerce x 'list)) 
-						   (handle-binding binders args-sym))
-			 ,@body))))
+	  `(fn (,(car rest) ,@(cdr rest))))
 	 ((listp (car rest))	   ; set of different arity binders/bodies
-	  (let ((numargs (gensym)))
+	  (let ((args-sym (gensym))
+			(numargs (gensym)))
 		`(lambda (&rest ,args-sym) 
 		   (let ((,numargs (length ,args-sym)))
 			 (cond
-			  ,@(loop for pair in rest append
+			  ,@(suffix (loop for pair in rest append
 					  (let ((binders (car pair))
 							(body (cdr pair)))
+						(assert (vectorp binders) t (format "binder forms need to be vectors (error in %s)." currently-defining-defn))
 						`(((arity-match ,numargs ',(binder-arity binders))
 						   (lexical-let* ,(mapcar 
 										   (lambda (x) (coerce x 'list)) 
-										   (handle-binding binders args-sym)) ,@body)))))))))))))
+										   (handle-binding binders args-sym)) ,@body)))))
+					  `(t (error "Unable to find an arity match for %d args in fn %s." ,numargs ',currently-defining-defn))))))))
+	 (t (error "Can't parse defn %s.  Defn needs a binder/body pair or a list of such pairs.  Neither appears to have been passed in. " currently-defining-defn))))
+
+(defmacro* defn (name &rest rest)
+  `(let ((currently-defining-defn ',name))
+	 (fset ',name (fn ,@rest))))
+
+;(defn f (x x) ([a b] (+ a b) ))
+
+; 
+; (defn a-test-f [x y] (+ x y))
+; (a-test-f 1 2)
+; (f 1 2 3)
+; (defn f ([z a] (* z a)) (x x) )
+	
+
+
+
 
 
 (defun binder->rest-forms (binder)
@@ -236,14 +228,14 @@
 			  (elt 1 from-rest-on))
 	  nil)))
 
-(defun check-seq-binder (binder)
-  (let ((n& (length (filter
-					 (lambda (x) (eq '& x))
-					 (coerce binder 'list)))))
-	(assert (or (= n& 0)
-				(= n& 1))
-			"Clojure-style binding forms cannot have more than one & expression"))
-  (let* ((rest-parts (member (lambda (x) 
+;; (defun check-seq-binder (binder)
+;;   (let ((n& (length (filter
+;; 					 (lambda (x) (eq '& x))
+;; 					 (coerce binder 'list)))))
+;; 	(assert (or (= n& 0)
+;; 				(= n& 1))
+;; 			"Clojure-style binding forms cannot have more than one & expression"))
+;;   (let* ((rest-parts (member (lambda (x) 
 
 (defun check-binder (binder)
   (case (binder->type binder)
