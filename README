@@ -1,3 +1,14 @@
+Update 31 May 2009
+* added support for multiple arity defn and fn definitions:
+
+    (defn f 
+      ([x] x)
+	  ([x y] (* x y)))
+    (f 10) ; -> 10
+    (f 10 20) ; -> 200
+
+  
+
 Some emacs utilities with clojure-style destructuring bind.
 
 	 (defn demo [a b [c d]] (list a b c d))
