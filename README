@@ -1,3 +1,8 @@
+Update 2 June 2009
+* added extensive checking of binder forms at compile time and what are hopefully informative error messages. 
+* Todo
+  - add support for :or form to the table destructuring
+
 Update 1 June 2009
 * defn now expands in terms of the fn macro
 * lots more error checking.  Some simple checks for misformed binders, also checks for arity when the function is called.
