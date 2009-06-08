@@ -51,7 +51,9 @@
   (let-seq (sub-binders 
 			keys
 			as-sym
-			or-form) (parse-and-check-tbl-binder binder)
+			or-form
+			keys-seq) (parse-and-check-tbl-binder binder)
+	(if (not as-sym) (setf as-sym (gensym (format "%s-as-symbol" currently-defining-defn))))
 	(let 	
 		((or-form-name nil)
 		 (previous-lets (append previous-lets (handle-binding as-sym expr))))
@@ -61,6 +63,11 @@
 			(setf or-form-name (gensym "or-form-name"))
 			(setf previous-lets
 				  (suffix previous-lets (vector or-form-name `(funcall ,or-form))))))
+
+	  (if keys-seq
+		  (loop for s across keys-seq do
+				(setf keys (suffix keys (make-keyword (format "%s" s))))
+				(setf sub-binders (suffix sub-binders s))))
 	  (append 
 	   previous-lets
 	   (loop for kw in keys
@@ -71,6 +78,7 @@
 			   (handle-binding sym `(tbl-or ,as-sym ,kw (tbl ,or-form-name ,kw)))))))))
 
 ; (handle-tbl-binding [:: [a b] :x y :y :as table :or (tbl! :x [1 2])] '(tbl 'x 10 'y 11) '())
+; (handle-tbl-binding [:: [a b :as q] :x :keys [y z]] '(tbl :x 10 :y 11 :z 14) '())
 
 (defun* handle-binding (binder expr &optional
 								(previous-lets '()))
@@ -158,6 +166,8 @@
   `(let ((currently-defining-defn ',name))
 	 (fset ',name (fn ,@rest))))
 
+(provide 'defn)
+
 ; (defn f (x x) ([a b] (+ a b) ))
 
 ; (defn a-test-f [x y [:: z :z :as a-tble :as eh]] (list (+ x y z) a-tble))
@@ -168,7 +178,9 @@
 
 ; (defn f [z [:: a :a :as a-table :or (tbl! :a 100)]] (list z a))
 ; (f 10 (tbl!))
-	
+
+; (defn f [z [:: :keys [a b c]]] (list z (+ a b c)))
+; (f 10 (tbl! :a 1 :b 2 :c 3))	
 
 
 

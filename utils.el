@@ -88,6 +88,9 @@
 (defun insertf (&rest args)
   (insert (apply #'format  args)))
 
+(defun make-keyword (name)
+  (intern (format ":%s" name)))
+
 (defun bang (sym)
   (intern (format "%s!" sym)))
 (defun s-cat (sym1 sym2)
@@ -397,6 +400,11 @@
   (apply #'vector 
 		 (loop for i from 1 below (length v)
 			   collect (elt v i))))
+
+(defun* elt-or (seq n &optional (otherwise nil))
+  (if (< n (length seq)) (elt seq n) otherwise))
+;; (elt-or [a b c] 3 'd)
+;; (elt [a b c] 1)
 
 ;; (split-list-left '(1 2 3 4 5) 4)
 ;; (split-list-right '(1 2 3 4 5) 3)

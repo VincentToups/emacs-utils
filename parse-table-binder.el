@@ -6,6 +6,22 @@
 
 (setq currently-defining-defn 'lambda)
 
+(defun key->count-key (it)
+  (case it 
+	(:as :n-as) 
+	(:or :n-or)
+	(:keys :n-keys)))
+
+(defun check-keys-form (form)
+  (and (vectorp form)
+	   (foldl 
+		(lambda (it ac)
+		  (and (not (keywordp it))
+			   (symbolp it)
+			   ac))
+		t
+		(vector->list form))))
+
 (defun parse-tbl-special-forms (it ac)
   (let-tbl 
 	((i :i)
@@ -20,9 +36,10 @@
   (cond 
    ((oddp i)
 	(if (or
+		 (eq :keys it)
 		 (eq :as it)
 		 (eq :or it))
-		(let* ((count-key (case it (:as :n-as) (:or :n-or)))
+		(let* ((count-key (key->count-key it))
 			   (n-special-form (+ 1 (tbl ac count-key))))
 		  (if (> n-special-form 1) (error "More than one %s clause in table binder in %s." it currently-defining-defn))
 		  (tbl! ac
@@ -31,8 +48,15 @@
 				count-key n-special-form))
 	  (error "Unrecognized special form keyword %s in %s" it currently-defining-defn)))
    ((evenp i)
-	(let ((spec-key (case prev (:as :as-sym) (:or :or-form))))
+	(let ((spec-key (case prev (:as :as-sym) (:or :or-form) (:keys :keys-seq))))
 	  (case prev
+		(:keys 
+		 (if (check-keys-form it)
+			 (tbl! ac 
+				   :i (+ i 1)
+				   :prev it
+				   spec-key it)
+		   (error ":keys must be followed by a vector of symbols, got %s instead in %s." it currently-defining-defn)))
 		(:as 
 		 (if (symbolp it)
 			 (tbl! ac
@@ -55,6 +79,8 @@
 	 (as-sym :as-sym)
 	 (or-form :or-form)
 	 (binders :binders)
+	 (n-keys :n-keys)
+	 (keys-seq :keys-seq)
 	 (keys :keys)) ac
 	(cond
 	 ((oddp i)
@@ -80,7 +106,8 @@
    ((binders :binders)
 	(keys    :keys)
 	(as-sym  :as-sym)
-	(or-form :or-form))
+	(or-form :or-form)
+	(keys-seq :keys-seq))
    (foldl
 	(lambda (it ac)
 	  (let-tbl 
@@ -109,16 +136,18 @@
 	 :state :init
 	 :n-as 0
 	 :n-or 0
+	 :n-keys 0
 	 :as-sym nil
 	 :or-form nil
+	 :keys-seq nil
 	 :prev nil
 	 :binders '()
 	 :keys '())
 	(vector->list binder))
-   (list binders keys as-sym or-form)))
+   (list binders keys as-sym or-form keys-seq)))
 
 (comment
- (parse-and-check-tbl-binder [:: a :a b :b c :c :as all :or something]))
+ (parse-and-check-tbl-binder [:: a :a b :b c :c :as all :or something :keys [q r s]]) )
 
 (provide 'parse-table-binder)
 
