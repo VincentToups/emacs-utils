@@ -226,7 +226,9 @@
 	(if (= 1 (length res))
 		(car res)
 	  res)))
-	
+
+(defun* tbl-or (tbl key &optional (otherwise nil))
+  (cl-gethash key tbl otherwise))
 
 (defun string-contains? (str re)
   (let ((new (replace-regexp-in-string re "" str)))

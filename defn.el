@@ -44,21 +44,33 @@
 		   append
 		   (handle-binding ind `(elt ,as-sym ,i)))))))
 
+(defun wrap-or-form (form)
+  `(lambda () ,form))
+
 (defun handle-tbl-binding (binder expr previous-lets)
   (let-seq (sub-binders 
 			keys
 			as-sym
 			or-form) (parse-and-check-tbl-binder binder)
 	(let 	
-		((previous-lets (append previous-lets (handle-binding as-sym expr))))
-	(append 
-	 previous-lets
-	 (loop for kw in keys
-		   and sym in sub-binders
-		   append
-		   (handle-binding sym `(tbl ,as-sym ,kw)))))))
+		((or-form-name nil)
+		 (previous-lets (append previous-lets (handle-binding as-sym expr))))
+	  (if or-form
+		  (progn 
+			(setf or-form (wrap-or-form or-form))
+			(setf or-form-name (gensym "or-form-name"))
+			(setf previous-lets
+				  (suffix previous-lets (vector or-form-name `(funcall ,or-form))))))
+	  (append 
+	   previous-lets
+	   (loop for kw in keys
+			 and sym in sub-binders
+			 append
+			 (if (not or-form)
+				 (handle-binding sym `(tbl ,as-sym ,kw))
+			   (handle-binding sym `(tbl-or ,as-sym ,kw (tbl ,or-form-name ,kw)))))))))
 
-; (handle-tbl-binding [:: [a b] :x y :y :as table] '(tbl 'x 10 'y 11) '())
+; (handle-tbl-binding [:: [a b] :x y :y :as table :or (tbl! :x [1 2])] '(tbl 'x 10 'y 11) '())
 
 (defun* handle-binding (binder expr &optional
 								(previous-lets '()))
@@ -154,6 +166,8 @@
 ; (f 1 2 3)
 ; (defn f ([z a] (* z a)) (x x) )
 
+; (defn f [z [:: a :a :as a-table :or (tbl! :a 100)]] (list z a))
+; (f 10 (tbl!))
 	
 
 
