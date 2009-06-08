@@ -387,6 +387,15 @@
 		  finally (return (list before after)))))
 
 
+(defun v-last (v)
+  (elt v (- (length v) 1)))
+(defun v-next-to-last (v)
+  (elt v (- (length v) 2)))
+(defun v-rest (v)
+  (apply #'vector 
+		 (loop for i from 1 below (length v)
+			   collect (elt v i))))
+
 ;; (split-list-left '(1 2 3 4 5) 4)
 ;; (split-list-right '(1 2 3 4 5) 3)
 ;; (split-list-drop '(1 2 3 4 5) 3)
