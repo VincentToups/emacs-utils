@@ -3,7 +3,15 @@
 
 (defvar lb "
 ")
-  
+
+(defun list->vector (lst)
+  (assert (listp lst) t "list->vector: input not a list.")
+  (coerce lst 'vector))
+
+(defun vector->list (vec)
+  (assert (vectorp vec) t "vector->list input not a vector.")
+  (coerce vec 'list))
+
 
 (defun last-line? ()
   (save-excursion
@@ -298,5 +306,91 @@
 		 (list (apply it ac)))
 	   args
 	   rfs))))
+
+(defmacro* let-seq (symbols lst &body body)
+  (let ((list-name (gensym "list-")))
+  `(let ((,list-name ,lst))
+	 (let ,(loop for i from 0 below (length symbols)
+				 and s in symbols collect
+				 (list s `(elt ,list-name ,i)))
+	   ,@body))))
+
+(defmacro* let-tbl (symbol-key-pairs tbl &body body)
+  (let ((tbl-name (gensym "table-")))
+	`(let ((,tbl-name ,tbl))
+	   (let ,(loop for i from 0 below (length symbol-key-pairs)
+				   and sk in symbol-key-pairs collect
+				   (list (car sk) `(tbl ,tbl-name ,(cadr sk))))
+		 ,@body))))
+
+(defmacro* llet-seq (symbols lst &body body)
+  (let ((list-name (gensym "list-")))
+  `(let ((,list-name ,lst))
+	 (lexical-let ,(loop for i from 0 below (length symbols)
+				 and s in symbols collect
+				 (list s `(elt ,list-name ,i)))
+	   ,@body))))
+
+(defmacro* llet-tbl (symbol-key-pairs tbl &body body)
+  (let ((tbl-name (gensym "table-")))
+	`(let ((,tbl-name ,tbl))
+	   (lexical-let ,(loop for i from 0 below (length symbol-key-pairs)
+				   and sk in symbol-key-pairs collect
+				   (list (car sk) `(tbl ,tbl-name ,(cadr sk))))
+		 ,@body))))
+
+
+(defun elts (sq inds)
+  (loop for i from 0 below (length inds) 
+		collect (elt sq (elt inds i))))
+
+(functionp (lambda (x) x))
+
+(defun split-list-left (lst pred)
+  (if (not (functionp pred))
+	  (split-list-left lst (lexical-let ((p pred)) (lambda (x) (eq p x))))
+	(loop with found = nil
+		  for i from 0 below (length lst)
+		  when (not found)
+		  collect (elt lst i) into before
+		  when found
+		  collect (elt lst i) into after 
+		  when (funcall pred (elt lst i))
+		  do (setf found t)
+		  finally (return (list before after)))))
+
+(defun split-list-right (lst pred)
+  (if (not (functionp pred))
+	  (split-list-right lst (lexical-let ((p pred)) (lambda (x) (eq p x))))
+	(loop with found = nil
+		  for i from 0 below (length lst)
+		  when (funcall pred (elt lst i))
+		  do (setf found t)
+		  when (not found)
+		  collect (elt lst i) into before
+		  when found
+		  collect (elt lst i) into after 
+		  finally (return (list before after)))))
+
+(defun split-list-drop (lst pred)
+  (if (not (functionp pred))
+	  (split-list-drop lst (lexical-let ((p pred)) (lambda (x) (eq p x))))
+	(loop with found = nil
+		  for i from 0 below (length lst)
+		  when (funcall pred (elt lst i))
+		  do (setf found t)
+		  when (not found)
+		  collect (elt lst i) into before
+		  when (and found
+					(not (funcall pred (elt lst i))))
+		  collect (elt lst i) into after 
+		  finally (return (list before after)))))
+
+
+;; (split-list-left '(1 2 3 4 5) 4)
+;; (split-list-right '(1 2 3 4 5) 3)
+;; (split-list-drop '(1 2 3 4 5) 3)
+
+(defmacro comment (&rest rest) 'nil)
 
 (provide 'utils)

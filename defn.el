@@ -1,10 +1,18 @@
 (require 'cl)
 (require 'utils)
+(require 'parse-table-binder)
+(require 'parse-seq-binder)
+
+(setq currently-defining-defn 'lambda)
 
 (defun v-last (v)
   (elt v (- (length v) 1)))
 (defun v-next-to-last (v)
   (elt v (- (length v) 2)))
+(defun v-rest (v)
+  (apply #'vector 
+		 (loop for i from 1 below (length v)
+			   collect (elt v i))))
 
 (defun binder->type (f)
   (cond ((symbolp f) :symbol)
@@ -37,33 +45,54 @@
 (defun get-or-produce-as-name (f)
   (if (has-as? f) (get-as f) (gensym)))
 
-(defun get-seq-individuals (binder)
-  (loop for item across binder while (not (or (eq '& item) (eq :as item)))
-		collect item))
+;; (defun get-seq-individuals (binder)
+;;   (loop for item across binder while (not (or (eq '& item) (eq :as item)))
+;; 		collect item))
 
-(defun get-seq-rest (binder)
-  (let ((res (member '& (coerce binder 'list))))
-	(if res (cadr res) nil)))
+;; (defun get-seq-rest (binder)
+;;   (let ((res (member '& (coerce binder 'list))))
+;; 	(if res (cadr res) nil)))
+
+;; (defun handle-seq-binder (binder expr previous-lets)
+;;   (let* ((as-name (get-or-produce-as-name binder))
+;; 		 (individuals (get-seq-individuals binder))
+;; 		 (rest-form (get-seq-rest binder))
+;; 		 (previous-lets (append previous-lets (list 
+;; 											   (vector as-name expr)))))
+;; 	(if rest-form 
+;; 		(setf previous-lets
+;; 			  (append previous-lets 
+;; 					  (handle-binding rest-form 
+;; 							  `(coerce (nthcdr ,(length individuals)
+;; 											   (coerce ,as-name 'list))
+;; 									   (if (listp ,as-name) 'list 'vector))))))
+;; 	(append 
+;; 	 previous-lets
+;; 	 (loop for i from 0 to (length individuals)
+;; 		   and ind in individuals 
+;; 		   append
+;; 		   (handle-binding ind `(elt ,as-name ,i))))))
 
 (defun handle-seq-binder (binder expr previous-lets)
-  (let* ((as-name (get-or-produce-as-name binder))
-		 (individuals (get-seq-individuals binder))
-		 (rest-form (get-seq-rest binder))
-		 (previous-lets (append previous-lets (list 
-											   (vector as-name expr)))))
+  (let-seq
+   (sub-binders rest-form as-sym or-form) (parse-and-check-seq-binder binder)
+   (let 
+	((previous-lets (append previous-lets (list 
+										  (vector as-sym expr)))))
 	(if rest-form 
 		(setf previous-lets
 			  (append previous-lets 
 					  (handle-binding rest-form 
-							  `(coerce (nthcdr ,(length individuals)
-											   (coerce ,as-name 'list))
-									   (if (listp ,as-name) 'list 'vector))))))
+							  `(coerce (nthcdr ,(length sub-binders)
+											   (coerce ,as-sym 'list))
+									   (if (listp ,as-sym) 'list 'vector))))))
 	(append 
 	 previous-lets
-	 (loop for i from 0 to (length individuals)
-		   and ind in individuals 
+	 (loop for i from 0 to (length sub-binders)
+		   and ind in sub-binders 
 		   append
-		   (handle-binding ind `(elt ,as-name ,i))))))
+		   (handle-binding ind `(elt ,as-sym ,i)))))))
+
 
 
 ; (handle-seq-binder [x y [a b :as ri] :as r] '(1 2 3) '())
@@ -88,17 +117,161 @@
 
 ;(tbl-bind-kws [:: x :x y :y :as z])
 
+(defun assert-as-count (binder)
+  (let ((as-count (count :as binder)))
+	(assert 
+	 (or (= 1 as-count)
+		 (= 0 as-count))
+	 t
+	 (format "At most one ':as' allowed per binder form in %s." currently-defining-defn))
+	as-count))
+
+; (assert-as-count [a b c d ])
+; (assert-as-count [a d c :as d :as f])
+; (assert-as-count [a d c d :as f])
+
+; (assert-or-count [a b c d :or x])
+; (assert-or-count [a d c :or d :or f])
+
+(defun assert-as-position (binder)
+  (let* ((n (length binder))
+		 (pos
+		  (loop for i from 0 below (length binder)
+			   and b across binder when 
+			   (eq b :as) return i)))
+	(assert (or
+			 (= pos (- n 2))
+			 (and
+			  (eq (elt binder (- n 2)) :or)
+			  (= pos (- n 4))))
+			t
+			(format ":as forms must be second to last (only followed by an :or) or last (%s)." currently-defining-defn))
+	pos))
+
+; (assert-as-position [a d c d :as f])
+; (assert-as-position [a d c d :as f :or q])
+; (assert-as-position [a d c d :or f :as q])
+
+(defun assert-as-symbol (binder pos)
+  (let ((v (elt binder (+ pos 1))))
+	(assert (and 
+			 (symbolp v)
+			 (not (keywordp v)))
+			t
+			(format ":as binder symbol must be a symbol and not a keyowrd (%s)" currently-defining-defn))
+	v))
+
+; (assert-as-symbol [a d c d :as f] 4)
+; (assert-as-symbol [a d c d :as f :or q] 4)
+; (assert-as-symbol [a d c d :or f :as q] 6)
+			 
+(defun assert-as-ok->sym-binder (binder)
+  (let ((n (assert-as-count binder)))
+	(case n
+	  (0 
+	   t)
+	  (t
+	   (let* ((pos (assert-as-position binder))
+			  (sym (assert-as-symbol binder pos)))
+		 (list sym
+			   (coerce (loop for i from 0 below (length binder)
+					 and b across binder
+					 when (and (not (= i pos))
+							   (not (= i (+ 1 pos))))
+					 collect b) 'vector)))))))
+
+; (assert-as-ok->sym-binder [a b c :as e :or d])
+
+(defun assert-or-count (binder)
+  (let ((or-count (count :or binder)))
+	(assert 
+	 (or (= 1 or-count)
+		 (= 0 or-count))
+	 t
+	 (format "At most one ':or' allowed per binder form in %s." currently-defining-defn))
+	or-count))
+
+(defun assert-or-position (binder)
+  (let ((n (length binder))
+		(pos
+		 (loop for i from 0 below (length binder)
+			   and b across binder when 
+			   (eq b :or) return i)))
+	(assert (or
+			 (= pos (- n 2))
+			 (and
+			  (eq (elt binder (- n 2)) :as)
+			  (= pos (- n 4))))
+			t
+			(format ":or forms must be second to last (only followed by an :or) or last (%s)." currently-defining-defn))
+	pos))
+
+(defun assert-or-symbol (binder pos)
+  (let ((v (elt binder (+ pos 1))))
+	(assert (and 
+			 (symbolp v)
+			 (not (keywordp v)))
+			t
+			(format ":or binder symbol must be a symbol and not a keyowrd (%s)" currently-defining-defn))
+	v))
+
+(defun assert-or-ok->sym-binder (binder)
+  (let ((n (assert-or-count binder)))
+	(case n
+	  (0 
+	   t)
+	  (t
+	   (let* ((pos (assert-or-position binder))
+			  (sym (assert-or-symbol binder pos)))
+		 (list sym
+			   (coerce (loop for i from 0 below (length binder)
+					 and b across binder
+					 when (and (not (= i pos))
+							   (not (= i (+ 1 pos))))
+					 collect b) 'vector)))))))
+
+; (assert-or-ok->sym-binder [a b c :as e :or d])
+
+; (assert-as-ok [a b c :as x])
+
+;; (defun parse-table-binder (binder) ; -> ( keys vals as or ) or throw
+;;   (let ((as-count (count :as binder))
+;; 		(or-count (count :or binder)))
+
+;; (defun handle-tbl-binding2 (binder); exrp previous-lets)
+;;   (let-seq (as-symbol binder) (assert-as-ok->sym-binder binder)
+;;   (let-seq (or-symbol binder) (assert-or-ok->sym-binder binder)
+;;     (list as-symbol or-symbol binder))))
+
+;; (handle-tbl-binding2 [a b c :as x :or b])
+	
+;; (defun handle-tbl-binding (binder expr previous-lets)
+;;   (let* ((as-name (get-or-produce-as-name binder))
+;; 		(kws (tbl-bind-kws binder))
+;; 		(syms (tbl-bind-syms binder))
+;; 		(previous-lets (append previous-lets (handle-binding as-name expr))))
+;; 	(append 
+;; 	 previous-lets
+;; 	 (loop for kw in kws
+;; 		   and sym in syms
+;; 		   append
+;; 		   (handle-binding sym `(tbl ,as-name ,kw))))))
+
 (defun handle-tbl-binding (binder expr previous-lets)
-  (let* ((as-name (get-or-produce-as-name binder))
-		(kws (tbl-bind-kws binder))
-		(syms (tbl-bind-syms binder))
-		(previous-lets (append previous-lets (handle-binding as-name expr))))
+  (let-seq (sub-binders 
+			keys
+			as-sym
+			or-form) (parse-and-check-tbl-binder binder)
+	(let 	
+		((previous-lets (append previous-lets (handle-binding as-sym expr))))
 	(append 
 	 previous-lets
-	 (loop for kw in kws
-		   and sym in syms
+	 (loop for kw in keys
+		   and sym in sub-binders
 		   append
-		   (handle-binding sym `(tbl ,as-name ,kw))))))
+		   (handle-binding sym `(tbl ,as-sym ,kw)))))))
+
+
 
 ; (handle-tbl-binding [:: [a b] :x y :y :as table] '(tbl 'x 10 'y 11) '())
 
@@ -141,16 +314,6 @@
 (defun generate-defn-exprs (arg-nam n)
   (loop for i from 0 below n collect
 		`(elt ,arg-nam ,i)))
-
-;; Old defn for posterity
-;; (defmacro* defn (name binders &body body)
-;;   (let ((args-sym (gensym)))
-;; 	`(defun ,name (&rest ,args-sym)
-;; 	   (lexical-let* ,(mapcar 
-;; 					  (lambda (x) (coerce x 'list)) 
-;; 					  (handle-binding binders args-sym))
-;; 		 ,@body))))
-
 
 (defun has-&? (binder)
   (member '& (coerce binder 'list)))
@@ -331,7 +494,6 @@
 					  (let ((binders (car pair))
 							(body (cdr pair)))
 						(assert (vectorp binders) t (format "binder forms need to be vectors (error in %s)." currently-defining-defn))
-						(check-binder binders)
 						`(((arity-match ,numargs ',(binder-arity binders))
 						   (lexical-let* ,(mapcar 
 										   (lambda (x) (coerce x 'list)) 
@@ -346,8 +508,8 @@
 ; (defn f (x x) ([a b] (+ a b) ))
 
 ; 
-; (defn a-test-f [x y] (+ x y))
-; (a-test-f 1 2)
+; (defn a-test-f [x y [:: z :z :as a-tble :as eh]] (list (+ x y z) a-tble))
+; (a-test-f 1 2 (tbl! :z 10))
 ; (f 1 2 3)
 ; (defn f ([z a] (* z a)) (x x) )
 
