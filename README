@@ -1,3 +1,6 @@
+Update 8 June 2009
+* added support for :keys in table binder, corrected several small bugs introduced by new parsing code.
+
 Update 7 June 2009
 * rewrote binder parsing code so that it is easier to extend and support error checking
 * added support for :or forms in table binders.  The form after :or is evaluated at call-time, rather than compile time, and must result in a hash-table with the appropriate keys to provide defaults.

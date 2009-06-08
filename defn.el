@@ -27,6 +27,7 @@
 (defun handle-seq-binder (binder expr previous-lets)
   (let-seq
    (sub-binders rest-form as-sym or-form) (parse-and-check-seq-binder binder)
+   (if (not as-sym) (setf as-sym (gensym (format "%s-seq-as-sym" currently-defining-defn))))
    (let 
 	((previous-lets (append previous-lets (list 
 										  (vector as-sym expr)))))
@@ -43,6 +44,8 @@
 		   and ind in sub-binders 
 		   append
 		   (handle-binding ind `(elt ,as-sym ,i)))))))
+
+; (handle-seq-binder [a b c d] '(list 1 2 3 4) '())
 
 (defun wrap-or-form (form)
   `(lambda () ,form))
