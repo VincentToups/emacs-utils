@@ -1,3 +1,7 @@
+Update 9 June 2009
+* added support for :or forms for sequence binding types.
+* Note: You can't use them at the top-level binder because they would confuse the automatic dispatch of function bodies on arity.  Sorry.
+
 Update 8 June 2009
 * added support for :keys in table binder, corrected several small bugs introduced by new parsing code.
 

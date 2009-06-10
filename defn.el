@@ -24,31 +24,45 @@
 		when (oddp i)
 		collect (elt fs i)))
 
+(defun wrap-or-form (form)
+  `(lambda () ,form))
+
 (defun handle-seq-binder (binder expr previous-lets)
   (let-seq
    (sub-binders rest-form as-sym or-form) (parse-and-check-seq-binder binder)
    (if (not as-sym) (setf as-sym (gensym (format "%s-seq-as-sym" currently-defining-defn))))
    (let 
-	((previous-lets (append previous-lets (list 
+	((or-form-name nil)
+	 (previous-lets (append previous-lets (list 
 										  (vector as-sym expr)))))
+	(if or-form
+		  (progn 
+			(setf or-form (wrap-or-form or-form))
+			(setf or-form-name (gensym "or-form-name"))
+			(setf previous-lets
+				  (suffix previous-lets (vector or-form-name `(funcall ,or-form))))))
 	(if rest-form 
 		(setf previous-lets
 			  (append previous-lets 
 					  (handle-binding rest-form 
-							  `(coerce (nthcdr ,(length sub-binders)
-											   (coerce ,as-sym 'list))
-									   (if (listp ,as-sym) 'list 'vector))))))
+									  (if or-form
+										  `(nthcdr-preserve-type ,(length sub-binders)
+																 (transplant-tail ,as-sym ,or-form-name))
+										`(nthcdr-preserve-type ,(length sub-binders)
+															   ,as-sym))))))
+	
 	(append 
 	 previous-lets
 	 (loop for i from 0 to (length sub-binders)
 		   and ind in sub-binders 
 		   append
-		   (handle-binding ind `(elt ,as-sym ,i)))))))
+		   (handle-binding ind 
+						   (if or-form 
+							   `(elt-or ,as-sym ,i (elt ,or-form-name ,i))
+							   `(elt ,as-sym ,i))))))))
 
-; (handle-seq-binder [a b c d] '(list 1 2 3 4) '())
+; (handle-seq-binder [a b c d :or [1 2 3 4]] '(list 1 2 3 4) '())
 
-(defun wrap-or-form (form)
-  `(lambda () ,form))
 
 (defun handle-tbl-binding (binder expr previous-lets)
   (let-seq (sub-binders 
@@ -158,6 +172,7 @@
 					  (let ((binders (car pair))
 							(body (cdr pair)))
 						(assert (vectorp binders) t (format "binder forms need to be vectors (error in %s)." currently-defining-defn))
+						(assert (not (member :or (coerce binders 'list))) t (format "top-level defn binding forms can't contain an or clause because it conflicts with automatic arity dispatching (%s)." currently-defining-defn))
 						`(((arity-match ,numargs ',(binder-arity binders))
 						   (lexical-let* ,(mapcar 
 										   (lambda (x) (coerce x 'list)) 
@@ -185,5 +200,7 @@
 ; (defn f [z [:: :keys [a b c]]] (list z (+ a b c)))
 ; (f 10 (tbl! :a 1 :b 2 :c 3))	
 
-
+; (defn f [a b [x y z :or [1 2 3]]] (+ a b x y z))
+; (f 1 2 [4])
+; (defn f [a b c :or [1 2 3]] (+ a b c))
 
