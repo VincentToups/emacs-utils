@@ -6,14 +6,19 @@
 (setq currently-defining-defn 'lambda)
 
 (defun binder->type (f)
-  (cond ((symbolp f) :symbol)
-		((and (vectorp f)
-			  (not (eq ':: (elt f 0))))
-		 :seq)
-		((and (vectorp f)
-			  (eq (elt f 0) '::))
-		 :tbl)
-		(t (error "Unrecognized form type"))))
+  (cond
+   ((and 
+	 (vectorp f)
+	 (= 0 (length f)))
+	:seq)
+   ((symbolp f) :symbol)
+   ((and (vectorp f)
+		 (not (eq ':: (elt f 0))))
+	:seq)
+   ((and (vectorp f)
+		 (eq (elt f 0) '::))
+	:tbl)
+   (t (error "Unrecognized form type"))))
 
 (defun forms->binders (fs)
   (loop for i from 0 below (length fs) 
@@ -62,6 +67,7 @@
 							   `(elt ,as-sym ,i))))))))
 
 ; (handle-seq-binder [a b c d :or [1 2 3 4]] '(list 1 2 3 4) '())
+; (handle-seq-binder [] '() '())
 
 
 (defun handle-tbl-binding (binder expr previous-lets)
@@ -150,9 +156,68 @@
 ; (binder-arity [a b c])
 
 (defun arity-match (n arity)
-  (if (eq (cadr arity) 'exactly)
-	  (= n (car arity))
-	(>= n (car arity))))
+  (let ((magnitude (car arity))
+		(modifier (cadr arity)))
+	(cond 
+	 ((eq modifier 'exactly)
+	  (= n magnitude))
+	 ((eq modifier '+more)
+	  (>= n magnitude))
+	 ((eq modifier '-less)
+	  (<= n magnitude)))))
+
+(defun arity-comparitor (arity1 arity2)
+  (let-seq (mag1 mod1) arity1
+  (let-seq (mag2 mod2) arity2
+    (cond
+	 ((eq mod1 mod2) (< mag1 mag2))
+	 ((and
+	   (or (eq mod1 'exactly) (eq 'mod1 '-less))
+	   (eq mod2 '+more))
+	  t)
+	 ((and
+	   (eq mod1 '+more)
+	   (or (eq mod2 'exactly) (eq mod2 '-less)))
+	  nil)
+	 ((and
+	   (eq mod1 'exactly)
+	   (eq mod2 '+more))
+	  t)
+	 ((and
+	   (eq mod1 'exactly)
+	   (eq mod2 '-less))
+	  nil)
+	 ((eq mod1 '-less)
+	  t)
+	 ((eq mod2 '-less)
+	  nil)
+	 ((eq mod1 'more)
+	  nil)
+	 ((eq mod2 'more)
+	  nil)
+	 (t (error "Unknown binder comparator case %s <? %s" arity1 arity2))))))
+
+; (arity-comparitor '(1 +more) '(3 exactly))
+; (arity-comparitor '(3 exactly) '(1 +more))
+
+(defun sort-arities (lst)
+  (sort* lst #'arity-comparitor))
+
+(defun random-arity ()
+  (let ((mods '(exactly +more -less)))
+	(list (random 20) (elt mods (random 3)))))
+
+; (random-arity)
+
+; (sort-arities (foldl (lambda (it ac) (cons (random-arity) ac)) '() '(1 2 3 4 5 6)))
+
+
+; (arity-match 2 '(3 +more))
+; (arity-match 3 '(3 -less))
+; (arity-match 2 '(2 exactly))
+; (arity-match 2 '(3 -less))
+
+; (handle-seq-binder [a b c & rest :or (list 10 11 12 13 14 15 16)] '(1 2 3 4 5) '())
 
 ; (arity-match 2 '(3 +more))
 
@@ -184,6 +249,9 @@
   `(let ((currently-defining-defn ',name))
 	 (fset ',name (fn ,@rest))))
 
+;(defn defn-test [] (+ 1 1))
+;(binder->type [])
+;(defn defn-test ([x] (+ x 1)))
 (provide 'defn)
 
 ; (defn f (x x) ([a b] (+ a b) ))

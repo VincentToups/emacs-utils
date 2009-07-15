@@ -48,7 +48,7 @@
    (lambda (ln)
 	 (if (not (current-line-in-region? startp endp))
 		 (kill-forward-chars 1)))))
-  
+
 (defun jlet-bindings->let-bindings (bindings)
   (if (not (mod (length bindings) 2)) (error "jlet binding form needs an even number of items.")
 	(let ((let-bindings '()))
@@ -150,13 +150,13 @@
   (apply #'listp args))
 
 (defun flatten (lst)
-    (reverse
-     (foldl
-      (lambda (item output)
-        (cond ((list? item)
-               (foldl #'cons output (flatten item)))
-              (t
-               (cons item output)))) '() lst)))
+  (reverse
+   (foldl
+	(lambda (item output)
+	  (cond ((list? item)
+			 (foldl #'cons output (flatten item)))
+			(t
+			 (cons item output)))) '() lst)))
 
 (defmacro after-this-line (&rest body)
   `(progn (insert "\n\n")
@@ -167,9 +167,9 @@
 		 (foldl (lambda (cu ou) (cons (list cu cu) ou))
 				'()
 				what)))
-  `(lexical-let ,lexletarg
-	 (lambda ,arglist
-	   ,@body))))
+	`(lexical-let ,lexletarg
+	   (lambda ,arglist
+		 ,@body))))
 
 (defun null? (lst) (eq '() lst))
 
@@ -200,28 +200,28 @@
 
 (defun bunch-list (lst)
   (reverse (cadr (foldl
-   (lambda (it ac) 
-	 (let ((ls (car ac))
-		   (ol (cadr ac)))
-	   (cond (ls (list nil (cons (list ls it) ol)))
-			 (t 
-			  (list it ol)))))
-   (list nil nil)
-   lst))))
+				  (lambda (it ac) 
+					(let ((ls (car ac))
+						  (ol (cadr ac)))
+					  (cond (ls (list nil (cons (list ls it) ol)))
+							(t 
+							 (list it ol)))))
+				  (list nil nil)
+				  lst))))
 
 (defun tbl! (&rest args)
   (cond 
    ((hash? (car args)) (foldl (lambda (pr tbl)
-		   (setf (cl-gethash (car pr) tbl)  (cadr pr))
-		   tbl)
-		 (car args)
-		 (bunch-list (cdr args))))
+								(setf (cl-gethash (car pr) tbl)  (cadr pr))
+								tbl)
+							  (car args)
+							  (bunch-list (cdr args))))
    (t
-  (foldl (lambda (pr tbl)
-		   (setf (cl-gethash (car pr) tbl)  (cadr pr))
-		   tbl)
-		 (cl-make-hash-table)
-		 (bunch-list args)))))
+	(foldl (lambda (pr tbl)
+			 (setf (cl-gethash (car pr) tbl)  (cadr pr))
+			 tbl)
+		   (cl-make-hash-table :test 'equal)
+		   (bunch-list args)))))
 
 (defun tbl (tbl &rest args)
   (let ((res
@@ -290,7 +290,7 @@
 					,machines))
 	   (progn
 		 ,@body)))
-	   
+
 (defmacro on (machines &rest body)
   (build-on machines body))
 
@@ -314,11 +314,11 @@
 
 (defmacro* let-seq (symbols lst &body body)
   (let ((list-name (gensym "list-")))
-  `(let ((,list-name ,lst))
-	 (let ,(loop for i from 0 below (length symbols)
-				 and s in symbols collect
-				 (list s `(elt ,list-name ,i)))
-	   ,@body))))
+	`(let ((,list-name ,lst))
+	   (let ,(loop for i from 0 below (length symbols)
+				   and s in symbols collect
+				   (list s `(elt ,list-name ,i)))
+		 ,@body))))
 
 (defmacro* let-tbl (symbol-key-pairs tbl &body body)
   (let ((tbl-name (gensym "table-")))
@@ -330,18 +330,18 @@
 
 (defmacro* llet-seq (symbols lst &body body)
   (let ((list-name (gensym "list-")))
-  `(let ((,list-name ,lst))
-	 (lexical-let ,(loop for i from 0 below (length symbols)
-				 and s in symbols collect
-				 (list s `(elt ,list-name ,i)))
-	   ,@body))))
+	`(let ((,list-name ,lst))
+	   (lexical-let ,(loop for i from 0 below (length symbols)
+						   and s in symbols collect
+						   (list s `(elt ,list-name ,i)))
+		 ,@body))))
 
 (defmacro* llet-tbl (symbol-key-pairs tbl &body body)
   (let ((tbl-name (gensym "table-")))
 	`(let ((,tbl-name ,tbl))
 	   (lexical-let ,(loop for i from 0 below (length symbol-key-pairs)
-				   and sk in symbol-key-pairs collect
-				   (list (car sk) `(tbl ,tbl-name ,(cadr sk))))
+						   and sk in symbol-key-pairs collect
+						   (list (car sk) `(tbl ,tbl-name ,(cadr sk))))
 		 ,@body))))
 
 
@@ -427,7 +427,7 @@
    (nthcdr n (coerce sq 'list))
    (seq-type sq)))
 
-; (nthcdr-preserve-type 3 [0 1 2 3 4 5 6 7])
+										; (nthcdr-preserve-type 3 [0 1 2 3 4 5 6 7])
 
 (defun transplant-tail (to from)
   (coerce 
@@ -435,6 +435,40 @@
 		 (elt-or to i (elt from i)))
    (seq-type to)))
 
-; (transplant-tail '(1 2 3 4) '(10 9))
+										; (transplant-tail '(1 2 3 4) '(10 9))
+
+(defun ff/line (filename line-number)
+  (let ((buf (find-file filename)))
+	(goto-line line-number)))
+
+(defun ff/char (filename char-number)
+  (let ((buf (find-file filename)))
+	(goto-char char-number)))
+
+(defun put-string-on-kill-ring (string)
+  (setq kill-ring (cons string kill-ring))
+  (if (> (length kill-ring) kill-ring-max)
+      (setcdr (nthcdr (1- kill-ring-max) kill-ring) nil))
+  (setq kill-ring-yank-pointer kill-ring))
+
+(defun ff/line->clipboard ()
+  (interactive)
+  (let ((ln (line-number-at-pos))
+		(filename
+		 (buffer-file-name)))
+    (put-string-on-kill-ring 
+	 (format "(ff/line \"%s\" %d)" filename ln))))
+
+(defun ff/char->clipboard ()
+  (interactive)
+  (let ((pt (point))
+		(filename
+		 (buffer-file-name)))
+    (put-string-on-kill-ring 
+	 (format "(ff/char \"%s\" %d)" filename pt))))
+
+(defun pwd->kill-ring ()
+  (interactive)
+  (put-string-on-kill-ring (pwd)))
 
 (provide 'utils)
