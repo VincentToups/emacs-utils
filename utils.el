@@ -471,4 +471,33 @@
   (interactive)
   (put-string-on-kill-ring (pwd)))
 
+(let ((currently-defining-defn 'range))
+  (fset 'range
+		(function
+		 (lambda (&rest G1590)
+		   (let ((G1591 (length G1590)))
+			 (cond ((arity-match G1591 '(3 exactly))
+					(lexical-let* ((lambda-seq-as-sym1608 G1590)
+								   (start (elt lambda-seq-as-sym1608 0))
+								   (step (elt lambda-seq-as-sym1608 1))
+								   (upto (elt lambda-seq-as-sym1608 2)))
+					  (loop for i from start below upto by step collect i)))
+				   ((arity-match G1591 '(2 exactly))
+					(lexical-let* ((lambda-seq-as-sym1621 G1590)
+								   (start (elt lambda-seq-as-sym1621 0))
+								   (upto (elt lambda-seq-as-sym1621 1)))
+					  e
+					  (range start 1 upto)))
+				   ((arity-match G1591 '(1 exactly))
+					(lexical-let* ((lambda-seq-as-sym1630 G1590)
+								   (upto (elt lambda-seq-as-sym1630 0)))
+					  (range 0 1 upto)))
+				   (t (error "Unable to find an arity match for %d args in fn %s."
+							 G1591
+							 'lambda))))))))
+
+
+
+
+
 (provide 'utils)
