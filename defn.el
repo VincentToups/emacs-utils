@@ -144,6 +144,7 @@
 										; (split-after-two [1 2 3 4 5 6])
 
 (defmacro* dlet (pairs &body body)
+  (declare (indent 1))
   (cond 
    ((= 0 (length pairs))
     `(progn ,@body))
@@ -152,10 +153,11 @@
 			 (split-after-two pairs)
 			 `(lexical-let* ,(pairs->dlet-binding-forms (list->vector first-pair))
 				(dlet ,(list->vector rest)
-					  ,@body))))))
+				  ,@body))))))
 
-; (dlet [[a b] (list 10 10) y 11] (+ a b y))
-; (dlet [[x y :as z] (list 1 2) b (+ x y)] (list x y b z))
+
+										; (dlet [[a b] (list 10 10) y 11] (+ a b y))
+										; (dlet [[x y :as z] (list 1 2) b (+ x y)] (list x y b z))
 
 (defun generate-defn-exprs (arg-nam n)
   (loop for i from 0 below n collect
@@ -167,11 +169,11 @@
 	rest-form
 	as-sym
 	or-form) (parse-and-check-seq-binder binder)
-   (let ((n (length sub-binders)))
-	 (if rest-form (list n '+more)
-	   (list n 'exactly)))))
+	(let ((n (length sub-binders)))
+	  (if rest-form (list n '+more)
+		(list n 'exactly)))))
 
-; (binder-arity [a b c])
+										; (binder-arity [a b c])
 
 (defun arity-match (n arity)
   (let ((magnitude (car arity))
@@ -186,37 +188,37 @@
 
 (defun arity-comparitor (arity1 arity2)
   (let-seq (mag1 mod1) arity1
-  (let-seq (mag2 mod2) arity2
-    (cond
-	 ((eq mod1 mod2) (< mag1 mag2))
-	 ((and
-	   (or (eq mod1 'exactly) (eq 'mod1 '-less))
-	   (eq mod2 '+more))
-	  t)
-	 ((and
-	   (eq mod1 '+more)
-	   (or (eq mod2 'exactly) (eq mod2 '-less)))
-	  nil)
-	 ((and
-	   (eq mod1 'exactly)
-	   (eq mod2 '+more))
-	  t)
-	 ((and
-	   (eq mod1 'exactly)
-	   (eq mod2 '-less))
-	  nil)
-	 ((eq mod1 '-less)
-	  t)
-	 ((eq mod2 '-less)
-	  nil)
-	 ((eq mod1 'more)
-	  nil)
-	 ((eq mod2 'more)
-	  nil)
-	 (t (error "Unknown binder comparator case %s <? %s" arity1 arity2))))))
+		   (let-seq (mag2 mod2) arity2
+					(cond
+					 ((eq mod1 mod2) (< mag1 mag2))
+					 ((and
+					   (or (eq mod1 'exactly) (eq 'mod1 '-less))
+					   (eq mod2 '+more))
+					  t)
+					 ((and
+					   (eq mod1 '+more)
+					   (or (eq mod2 'exactly) (eq mod2 '-less)))
+					  nil)
+					 ((and
+					   (eq mod1 'exactly)
+					   (eq mod2 '+more))
+					  t)
+					 ((and
+					   (eq mod1 'exactly)
+					   (eq mod2 '-less))
+					  nil)
+					 ((eq mod1 '-less)
+					  t)
+					 ((eq mod2 '-less)
+					  nil)
+					 ((eq mod1 'more)
+					  nil)
+					 ((eq mod2 'more)
+					  nil)
+					 (t (error "Unknown binder comparator case %s <? %s" arity1 arity2))))))
 
-; (arity-comparitor '(1 +more) '(3 exactly))
-; (arity-comparitor '(3 exactly) '(1 +more))
+										; (arity-comparitor '(1 +more) '(3 exactly))
+										; (arity-comparitor '(3 exactly) '(1 +more))
 
 (defun sort-arities (lst)
   (sort* lst #'arity-comparitor))
@@ -225,45 +227,46 @@
   (let ((mods '(exactly +more -less)))
 	(list (random 20) (elt mods (random 3)))))
 
-; (random-arity)
+										; (random-arity)
 
-; (sort-arities (foldl (lambda (it ac) (cons (random-arity) ac)) '() '(1 2 3 4 5 6)))
+										; (sort-arities (foldl (lambda (it ac) (cons (random-arity) ac)) '() '(1 2 3 4 5 6)))
 
 
-; (arity-match 2 '(3 +more))
-; (arity-match 3 '(3 -less))
-; (arity-match 2 '(2 exactly))
-; (arity-match 2 '(3 -less))
+										; (arity-match 2 '(3 +more))
+										; (arity-match 3 '(3 -less))
+										; (arity-match 2 '(2 exactly))
+										; (arity-match 2 '(3 -less))
 
-; (handle-seq-binder [a b c & rest :or (list 10 11 12 13 14 15 16)] '(1 2 3 4 5) '())
+										; (handle-seq-binder [a b c & rest :or (list 10 11 12 13 14 15 16)] '(1 2 3 4 5) '())
 
-; (arity-match 2 '(3 +more))
+										; (arity-match 2 '(3 +more))
 
 (setq currently-defining-defn 'lambda)
 
 (defmacro* fn (&rest rest)
-	(cond
-	 ((vectorp (car rest))
-	  `(fn (,(car rest) ,@(cdr rest))))
-	 ((listp (car rest))	   ; set of different arity binders/bodies
-	  (let ((args-sym (gensym))
-			(numargs (gensym)))
-		`(lambda (&rest ,args-sym) 
-		   (let ((,numargs (length ,args-sym)))
-			 (cond
-			  ,@(suffix (loop for pair in rest append
-					  (let ((binders (car pair))
-							(body (cdr pair)))
-						(assert (vectorp binders) t (format "binder forms need to be vectors (error in %s)." currently-defining-defn))
-						(assert (not (member :or (coerce binders 'list))) t (format "top-level defn binding forms can't contain an or clause because it conflicts with automatic arity dispatching (%s)." currently-defining-defn))
-						`(((arity-match ,numargs ',(binder-arity binders))
-						   (lexical-let* ,(mapcar 
-										   (lambda (x) (coerce x 'list)) 
-										   (handle-binding binders args-sym)) ,@body)))))
+  (cond
+   ((vectorp (car rest))
+	`(fn (,(car rest) ,@(cdr rest))))
+   ((listp (car rest))	   ; set of different arity binders/bodies
+	(let ((args-sym (gensym))
+		  (numargs (gensym)))
+	  `(lambda (&rest ,args-sym) 
+		 (let ((,numargs (length ,args-sym)))
+		   (cond
+			,@(suffix (loop for pair in rest append
+							(let ((binders (car pair))
+								  (body (cdr pair)))
+							  (assert (vectorp binders) t (format "binder forms need to be vectors (error in %s)." currently-defining-defn))
+							  (assert (not (member :or (coerce binders 'list))) t (format "top-level defn binding forms can't contain an or clause because it conflicts with automatic arity dispatching (%s)." currently-defining-defn))
+							  `(((arity-match ,numargs ',(binder-arity binders))
+								 (lexical-let* ,(mapcar 
+												 (lambda (x) (coerce x 'list)) 
+												 (handle-binding binders args-sym)) ,@body)))))
 					  `(t (error "Unable to find an arity match for %d args in fn %s." ,numargs ',currently-defining-defn))))))))
-	 (t (error "Can't parse defn %s.  Defn needs a binder/body pair or a list of such pairs.  Neither appears to have been passed in. " currently-defining-defn))))
+   (t (error "Can't parse defn %s.  Defn needs a binder/body pair or a list of such pairs.  Neither appears to have been passed in. " currently-defining-defn))))
 
 (defmacro* defn (name &rest rest)
+  (declare (indent defun))
   `(let ((currently-defining-defn ',name))
 	 (fset ',name (fn ,@rest))))
 

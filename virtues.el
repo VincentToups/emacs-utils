@@ -44,15 +44,15 @@
 (defn slurp-virtue-file 
   ([filename sums]
    (dlet [buf (find-file-noselect filename)]
-		 (with-current-buffer buf
-		   (loop for i from 2 to 14 do 
-				 (goto-line i)
-				 (dlet [virtue (chomp-properties (org-table-get-field 1))
-							   score  (string-to-number (chomp-properties (org-table-get-field 2)))]
-					   (tbl! sums virtue (+ score (tbl sums virtue)))
-					   (tbl! sums (concat virtue "-count") (+ 1 (tbl sums (concat virtue "-count")))))))
-		 (kill-buffer buf)
-		 sums))
+	 (with-current-buffer buf
+	   (loop for i from 2 to 14 do 
+			 (goto-line i)
+			 (dlet [virtue (chomp-properties (org-table-get-field 1))
+						   score  (string-to-number (chomp-properties (org-table-get-field 2)))]
+			   (tbl! sums virtue (+ score (tbl sums virtue)))
+			   (tbl! sums (concat virtue "-count") (+ 1 (tbl sums (concat virtue "-count")))))))
+	 (kill-buffer buf)
+	 sums))
   ([filename]
    (slurp-virtue-file filename (default-virtue-sums))))
 
@@ -85,6 +85,7 @@
 		  and
 		  virt in all-virtues do
 		  (insertf "%s %s\n" vp (make-string (tbl averages virt) ?*)))))
+
 
 
 
