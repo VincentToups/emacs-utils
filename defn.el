@@ -265,31 +265,50 @@
 					  `(t (error "Unable to find an arity match for %d args in fn %s." ,numargs ',currently-defining-defn))))))))
    (t (error "Can't parse defn %s.  Defn needs a binder/body pair or a list of such pairs.  Neither appears to have been passed in. " currently-defining-defn))))
 
+(defun extract-interactive-and-return (forms)
+  (loop with 
+		interactives = nil
+		and
+		outforms = nil
+	    for form in forms do
+		(if (and (listp form)
+				 (eq (car form) 'interactive))
+			(push form interactives)
+		  (push form outforms))
+		finally 
+		(return (list (reverse interactives) (reverse outforms)))))
+
 (defmacro* defn (name &rest rest)
   (declare (indent defun))
-  `(let ((currently-defining-defn ',name))
-	 (fset ',name (fn ,@rest))))
+  (let-seq (interactives clean-rest) (extract-interactive-and-return rest)
+		   (if ($ (length interactives) > 1) (error "Too many interactive forms in %s." name))
+		   (let ((undername (gensym (format "%s-" name)))
+				 (args (gensym (format "%s-args-" name))))
+			 `(let ((currently-defining-defn ',name))
+				(lexical-let ((,undername (fn ,@clean-rest)))
+				  (defun ,name (&rest ,args) ,(car interactives)
+					(apply ,undername ,args)))))))
 
-;(defn defn-test [] (+ 1 1))
-;(binder->type [])
-;(defn defn-test ([x] (+ x 1)))
+										;(defn defn-test [] (+ 1 1))
+										;(binder->type [])
+										;(defn defn-test ([x] (+ x 1)))
 (provide 'defn)
 
-; (defn f (x x) ([a b] (+ a b) ))
+										; (defn f (x x) ([a b] (+ a b) ))
 
-; (defn a-test-f [x y [:: z :z :as a-tble :as eh]] (list (+ x y z) a-tble))
-; (defn a-test-f [x y [:: z :z :as a-tble]] (list (+ x y z) a-tble))
-; (a-test-f 1 2 (tbl! :z 10))
-; (f 1 2 3)
-; (defn f ([z a] (* z a)) (x x) )
+										; (defn a-test-f [x y [:: z :z :as a-tble :as eh]] (list (+ x y z) a-tble))
+										; (defn a-test-f [x y [:: z :z :as a-tble]] (list (+ x y z) a-tble))
+										; (a-test-f 1 2 (tbl! :z 10))
+										; (f 1 2 3)
+										; (defn f ([z a] (* z a)) (x x) )
 
-; (defn f [z [:: a :a :as a-table :or (tbl! :a 100)]] (list z a))
-; (f 10 (tbl!))
+										; (defn f [z [:: a :a :as a-table :or (tbl! :a 100)]] (list z a))
+										; (f 10 (tbl!))
 
-; (defn f [z [:: :keys [a b c]]] (list z (+ a b c)))
-; (f 10 (tbl! :a 1 :b 2 :c 3))	
+										; (defn f [z [:: :keys [a b c]]] (list z (+ a b c)))
+										; (f 10 (tbl! :a 1 :b 2 :c 3))	
 
-; (defn f [a b [x y z :or [1 2 3]]] (+ a b x y z))
-; (f 1 2 [4])
-; (defn f [a b c :or [1 2 3]] (+ a b c))
+										; (defn f [a b [x y z :or [1 2 3]]] (+ a b x y z))
+										; (f 1 2 [4])
+										; (defn f [a b c :or [1 2 3]] (+ a b c))
 

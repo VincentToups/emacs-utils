@@ -467,6 +467,18 @@
     (put-string-on-kill-ring 
 	 (format "(ff/char \"%s\" %d)" filename pt))))
 
+(defun ff/this-text->clipboard (s e)
+  (interactive "r")
+  (put-string-on-kill-ring 
+   (format 
+	"(ff/this-text %s \"%s\")" 
+	(buffer-file-name) 
+	(buffer-substring-no-properties s e))))
+
+(defun ff/this-text (filename txt)
+  (with-current-buffer (find-file filename)
+	(word-search-forward txt)))
+
 (defun pwd->kill-ring ()
   (interactive)
   (put-string-on-kill-ring (pwd)))
@@ -496,8 +508,14 @@
 							 G1591
 							 'lambda))))))))
 
+(defmacro* $ (first f &rest rest)
+  `(,f ,first ,@rest))
 
-
-
+(defun shell-to (dir)
+  (let* ((buf (shell))
+		 (pro (get-buffer-process buf)))
+	(send-string pro (concat "\ncd " dir "\n"))
+	(with-current-buffer buf (cd dir))
+	(send-string pro "ls -t | head -n 10\n")))
 
 (provide 'utils)

@@ -1,3 +1,14 @@
+Update 26 Ayg 2009
+
+* fixed a regression in defn code which disabled the ability to make defn's interactive.
+* ADDED MONADS!!!
+  * identity monad
+  * maybe monad
+  * sequence monad
+* Monads support clojure-style destructuring bind via domonad expressions.
+* no support for with-monad yet.
+
+
 Update 17 July 2009
 
 * fixed bug in dlet which caused an error with using the let*-like semantics.  dlet is now a recursive macro
