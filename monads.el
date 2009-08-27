@@ -88,11 +88,11 @@
 (defn maybe/ [x y]
   (if (= 0 y) (None)
 	(Just (/ x y))))
-
+(comment
 (domonad monad-id [x 10 y 11] (+ x y))
 (domonad monad-maybe [x (Just 20) k (maybe/ x 4) y (maybe+ k 1)] k)
 (domonad monad-maybe [x (Just 20) k (maybe/ x 0) y (maybe+ k 1)] k)
-(domonad monad-seq [x (list 1 2 3) y (list 4 5 6)] (list x y))
+(domonad monad-seq [x (list 1 2 3) y (list 4 5 6)] (list x y)))
 
 (provide 'monads)
 
