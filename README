@@ -60,7 +60,7 @@ monads are patterned after the clojure contrib monad implementation
 (although they are substantially less complete).  Monads use the same
 syntax for binding as clojure, so you can do neat things with them.
 
-A simple example is identity monad.
+A simple example is the Identity monad.
 
     (require 'monads)
 
@@ -101,11 +101,10 @@ desctructuring supported there works here.
 The implementation is wacky right now, but will be cleaned up when I
 can find moments of respite from writing my dissertation.
   
+Updates:
+--------
 
-
-
-
-Update 26 Ayg 2009
+Update 26 Aug 2009
 
 * fixed a regression in defn code which disabled the ability to make defn's interactive.
 * ADDED MONADS!!!
