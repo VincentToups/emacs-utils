@@ -26,8 +26,8 @@ These work in a manner similar to the clojure equivalents.
 This defines a function of one or two arguments.  When the function is
 called, the correct body is invoked based on arity.
 
-While emacs lacks a special syntax for tables, to does have hash
-arrays.  This library supports destructuring bind on hash-tables also
+While emacs lacks a special syntax for tables, it does have hash
+tables.  This library supports destructuring bind on hash-tables also
 via the following syntax:
 
     (defn f [a 
