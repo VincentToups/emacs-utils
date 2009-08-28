@@ -17,6 +17,8 @@ defn, fn, dlet examples
 
 These work in a manner similar to the clojure equivalents.
 
+    (require 'defn)
+
     (defn f 
       ([x] x)
 	  ([x y] (* x y)))
@@ -42,7 +44,7 @@ Note that `(tbl! :z 10)` is short hand which creates a hash table.  It
 can take multiple arguments: `(tbl! :x 10 :y 11 :z 14)`.  Quick access
 to the values in the table is accomplished via `tbl`: `(tbl
 a-table:x)` gives the value stored by `:x`.  These functions are
-included int he library.
+included in the library.
 
 Destructuring bind is fully recursive, so you can nest desctructuring
 syntax deeply and the macros will do the right thing.  The macro
@@ -72,7 +74,7 @@ Slightly more interesting is the Maybe monad.
        [x (Just 20) 
         k (maybe/ x 4) 
         y (maybe+ k 1)] 
-      k) ;-> (Just 5)
+      y) ;-> (Just 5)
 
 But:
 
@@ -80,7 +82,7 @@ But:
        [x (Just 20) 
         k (maybe/ x 0) ; Divide by zero ruins the calculation
         y (maybe+ k 1)] 
-      k) ;-> (None)
+      y) ;-> (None)
 
 Even more interesting is the sequence monad:
 
