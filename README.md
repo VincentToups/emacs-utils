@@ -39,9 +39,10 @@ via the following syntax:
 
 
 Note that `(tbl! :z 10)` is short hand which creates a hash table.  It
-can take multiple arguments: `(tbl! :x 10 :y 11 :z 14).  Quick access
-to the values in the table is accomplished via `tbl`: `(tbl a-table:x)` gives the value stored by `:x`.  These functions are included int
-he library.
+can take multiple arguments: `(tbl! :x 10 :y 11 :z 14)`.  Quick access
+to the values in the table is accomplished via `tbl`: `(tbl
+a-table:x)` gives the value stored by `:x`.  These functions are
+included int he library.
 
 Destructuring bind is fully recursive, so you can nest desctructuring
 syntax deeply and the macros will do the right thing.  The macro
