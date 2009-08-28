@@ -74,7 +74,7 @@ Slightly more interesting is the Maybe monad.
        [x (Just 20) 
         k (maybe/ x 4) 
         y (maybe+ k 1)] 
-      y) ;-> (Just 5)
+      y) ;-> (Just 6)
 
 But:
 
