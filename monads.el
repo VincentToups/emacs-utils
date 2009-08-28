@@ -3,21 +3,30 @@
 (require 'defn)
 
 (setf monad-maybe
-  (tbl!
-   :result (lambda (x) (list 'Just x))
-   :bind (lambda (v f)
-		   (if (= (car v) 'None) v
-			 (funcall f (cadr v))))))
+	  (tbl!
+	   :result (lambda (x) (list 'Just x))
+	   :bind (lambda (v f)
+			   (if (= (car v) 'None) v
+				 (funcall f (cadr v))))))
 (setf monad-maybe
-  (tbl!
-   :result (lambda (x) (Just x))
-   :bind (lambda (v f)
-		   (if (eq (car v) 'None) v
-			 (funcall f (MaybeVal v))))))
+	  (tbl!
+	   :result (lambda (x) (Just x))
+	   :bind (lambda (v f)
+			   (if (eq (car v) 'None) v
+				 (funcall f (MaybeVal v))))))
 
 (setf monad-id 
-  (tbl! :result (lambda (x) x)
-		:bind (lambda (v f) (funcall f v))))
+	  (tbl! :result (lambda (x) x)
+			:bind (lambda (v f) (funcall f v))))
+
+(setf monad-state 
+	  (tbl! 
+	   :result (fn [x] (fn [s] (list x s)))
+	   :bind (fn [mv f] 
+ 				 (fn [s] 
+					 (dlet [[val new-state] (funcall mv s)]
+					   (funcall (funcall f val) new-state))))))
+
 
 (setf monad-seq 
 	  (tbl! :result (lambda (x) (list x))
@@ -89,10 +98,25 @@
   (if (= 0 y) (None)
 	(Just (/ x y))))
 (comment
-(domonad monad-id [x 10 y 11] (+ x y))
-(domonad monad-maybe [x (Just 20) k (maybe/ x 4) y (maybe+ k 1)] k)
-(domonad monad-maybe [x (Just 20) k (maybe/ x 0) y (maybe+ k 1)] k)
-(domonad monad-seq [x (list 1 2 3) y (list 4 5 6)] (list x y)))
+ 
+ (domonad monad-id [x 10 y 11] (+ x y))
+ (domonad monad-maybe [x (Just 20) k (maybe/ x 4) y (maybe+ k 1)] k)
+ (domonad monad-maybe [x (Just 20) k (maybe/ x 0) y (maybe+ k 1)] k)
+ (domonad monad-seq [x (list 1 2 3) y (list 4 5 6)] (list x y))
+
+ (defn state-incr [state]
+   (list state (+ 1 state)))
+
+ (funcall (domonad monad-state
+				   [a 
+					#'state-incr 
+					b 
+					#'state-incr
+					c
+					#'state-incr]
+				   (list a b c)) 0)
+
+)
 
 (provide 'monads)
 

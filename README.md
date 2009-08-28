@@ -106,6 +106,10 @@ can find moments of respite from writing my dissertation.
 Updates:
 --------
 
+Update 28 Aug 2009
+
+* added State Monad (monad-state).
+
 Update 26 Aug 2009
 
 * fixed a regression in defn code which disabled the ability to make defn's interactive.
