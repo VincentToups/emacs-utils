@@ -155,6 +155,18 @@
 				(dlet ,(list->vector rest)
 				  ,@body))))))
 
+(defmacro* dlet_ (pairs &body body)
+  (declare (indent 1))
+  (cond 
+   ((= 0 (length pairs))
+    `(progn ,@body))
+   (t 
+	(let-seq (first-pair rest)
+			 (split-after-two pairs)
+			 `(let* ,(pairs->dlet-binding-forms (list->vector first-pair))
+				(dlet ,(list->vector rest)
+				  ,@body))))))
+
 
 										; (dlet [[a b] (list 10 10) y 11] (+ a b y))
 										; (dlet [[x y :as z] (list 1 2) b (+ x y)] (list x y b z))
@@ -265,6 +277,28 @@
 					  `(t (error "Unable to find an arity match for %d args in fn %s." ,numargs ',currently-defining-defn))))))))
    (t (error "Can't parse defn %s.  Defn needs a binder/body pair or a list of such pairs.  Neither appears to have been passed in. " currently-defining-defn))))
 
+(defmacro* fn_ (&rest rest)
+  (cond
+   ((vectorp (car rest))
+	`(fn (,(car rest) ,@(cdr rest))))
+   ((listp (car rest))	   ; set of different arity binders/bodies
+	(let ((args-sym (gensym))
+		  (numargs (gensym)))
+	  `(lambda (&rest ,args-sym) 
+		 (let ((,numargs (length ,args-sym)))
+		   (cond
+			,@(suffix (loop for pair in rest append
+							(let ((binders (car pair))
+								  (body (cdr pair)))
+							  (assert (vectorp binders) t (format "binder forms need to be vectors (error in %s)." currently-defining-defn))
+							  (assert (not (member :or (coerce binders 'list))) t (format "top-level defn binding forms can't contain an or clause because it conflicts with automatic arity dispatching (%s)." currently-defining-defn))
+							  `(((arity-match ,numargs ',(binder-arity binders))
+								 (let* ,(mapcar 
+												 (lambda (x) (coerce x 'list)) 
+												 (handle-binding binders args-sym)) ,@body)))))
+					  `(t (error "Unable to find an arity match for %d args in fn %s." ,numargs ',currently-defining-defn))))))))
+   (t (error "Can't parse defn %s.  Defn needs a binder/body pair or a list of such pairs.  Neither appears to have been passed in. " currently-defining-defn))))
+
 (defun extract-interactive-and-return (forms)
   (loop with 
 		interactives = nil
@@ -289,9 +323,21 @@
 				  (defun ,name (&rest ,args) ,(car interactives)
 					(apply ,undername ,args)))))))
 
+(defmacro* defn_ (name &rest rest)
+  (declare (indent defun))
+  (let-seq (interactives clean-rest) (extract-interactive-and-return rest)
+		   (if ($ (length interactives) > 1) (error "Too many interactive forms in %s." name))
+		   (let ((undername (gensym (format "%s-" name)))
+				 (args (gensym (format "%s-args-" name))))
+			 `(let ((currently-defining-defn ',name))
+				(lexical-let ((,undername (fn_ ,@clean-rest)))
+				  (defun ,name (&rest ,args) ,(car interactives)
+					(apply ,undername ,args)))))))
+
 										;(defn defn-test [] (+ 1 1))
 										;(binder->type [])
 										;(defn defn-test ([x] (+ x 1)))
+
 (provide 'defn)
 
 										; (defn f (x x) ([a b] (+ a b) ))

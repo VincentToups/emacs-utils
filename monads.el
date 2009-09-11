@@ -26,16 +26,64 @@
  				 (fn [s] 
 					 (dlet [[val new-state] (funcall mv s)]
 					   (funcall (funcall f val) new-state))))))
-
-
 (setf monad-seq 
 	  (tbl! :result (lambda (x) (list x))
 			:bind (lambda (v f) (apply #'append (mapcar f v)))))
 
-(defn m-result [monad v]
-  (funcall (tbl monad :result) v))
 (defn m-bind [monad v f]
   (funcall (tbl monad :bind) v f))
+
+(defn m-result [monad v]
+  (funcall (tbl monad :result) v))
+
+
+(defmacro* with-monad (monad &body body)
+  `(labels ((result (x) (m-result ,monad x))
+			(bind (v f) (m-bind ,monad v f))
+			(>>= (v f) (m-bind ,monad v f)))
+	 ,@body))
+ 
+
+
+(dont-do 
+ (with-monad monad-seq
+			 ($ (list 10 11 12) >>=  (lambda (x) (result (+ x 1)))))
+)
+
+(defmacro* domonad-helper* (forms &body body)
+  (cond 
+   ((= 0 (length forms)) `(result (progn ,@body)))
+   (t 
+	(let ((form (car (coerce forms 'list)))
+		  (val (cadr (coerce forms 'list)))
+		  (rest-forms (coerce (cddr (coerce forms 'list)) 'vector)))
+	  `(bind ,val (fn ,(vector form) (better-domonad-helper ,rest-forms ,@body)))))))
+
+(defmacro* domonad-helper* (forms &body body)
+  (cond 
+   ((= 0 (length forms)) `(result (progn ,@body)))
+   (t 
+	(dlet_ [[form val & rest-forms] forms]
+	  `(bind ,val (fn ,(vector form) (better-domonad-helper ,rest-forms ,@body)))))))
+
+(defmacro* domonad* (monad forms &body body)
+  (cond 
+   ((oddp (length forms)) (error "domonad requires an even number of forms"))
+   (t
+	`(with-monad ,monad
+				 (domonad-helper* ,forms ,@body)))))
+
+
+(dont-do 
+ (domonad monad-seq 
+		  [testx (list 1 2) testy (list 1 2)]
+		  (list testx testy))
+
+ (domonad* monad-seq
+		   [testx (list 1 2) testy (result (+ 1 testx))]
+		   testy)
+)
+
 
 (defmacro* domonad-inner (bind-sym result-sym forms &body body)
   (cond ((= 0 (length forms)) `(funcall ,result-sym (progn ,@body)))
@@ -80,6 +128,7 @@
 					   ,result-sym 
 					   ,rest-forms 
 					   ,@body))))))))
+
 
 (defn Just [x] 
   (cond ((numberp x) (list 'Just x))

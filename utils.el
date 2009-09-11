@@ -1,6 +1,8 @@
 ;;; utils.el 
 ;;; Some of Vincent's utils.
 
+(require 'cl)
+
 (defvar lb "
 ")
 
@@ -386,10 +388,9 @@
 		  do (setf found t)
 		  when (not found)
 		  collect (elt lst i) into before
-		  when (and found
-					(not (funcall pred (elt lst i))))
+		  when found
 		  collect (elt lst i) into after 
-		  finally (return (list before after)))))
+		  finally (return (if (not found) nil (list before (cdr after)))))))
 
 
 (defun v-last (v)
@@ -511,11 +512,16 @@
 (defmacro* $ (first f &rest rest)
   `(,f ,first ,@rest))
 
+(defun first (l) (car l))
+
 (defun shell-to (dir)
   (let* ((buf (shell))
 		 (pro (get-buffer-process buf)))
 	(send-string pro (concat "\ncd " dir "\n"))
 	(with-current-buffer buf (cd dir))
 	(send-string pro "ls -t | head -n 10\n")))
+
+(defmacro* dont-do (&body body)
+  `(progn nil))
 
 (provide 'utils)
