@@ -296,6 +296,18 @@
 (defmacro on (machines &rest body)
   (build-on machines body))
 
+(defmacro* place-case (&rest pairs)
+  `(case (quote ,(intern system-name))
+     ,@(loop for pair in pairs collect
+	     (cond 
+	      ((stringp (car pair))
+	       (cons `(quote ,(intern (car pair)))
+		     (cdr pair)))
+	      ((symbolp (car pair))
+	       (cons `(quote ,(car pair))
+		     (cdr pair)))
+	      (t (error "place-case needs places enumerated as either strings or symbols"))))))
+
 (defmacro defvar-buf-loc (nm &optional vl do)
   `(progn (defvar ,nm ,vl ,do)
 		  (make-variable-buffer-local ',nm)))
@@ -472,7 +484,7 @@
   (interactive "r")
   (put-string-on-kill-ring 
    (format 
-	"(ff/this-text %s \"%s\")" 
+	"(ff/this-text \"%s\" \"%s\")" 
 	(buffer-file-name) 
 	(buffer-substring-no-properties s e))))
 
@@ -523,5 +535,69 @@
 
 (defmacro* dont-do (&body body)
   `(progn nil))
+
+(defun zip (&rest lsts)
+  (apply 'mapcar* (cons 'list lsts)))
+
+(defun evrep-region (start end)
+  (interactive "r")
+  (let* ((str (buffer-substring-no-properties start end))
+		 (v (eval (read str))))
+	(kill-region start end)
+	(insertf "%s" v)))
+
+(defun e (x) (expt 10 x))
+
+(defun show-buffers-matching (rx)
+  (interactive "sEnter a Pattern:")
+  (let* ((bfrs 
+		  (sort (filter 
+				 (lambda (x) 
+				   (string-match rx (buffer-name x)))
+				 (buffer-list)) 
+				(lambda (b1 b2)
+				  (string< (buffer-name b1)
+						   (buffer-name b2))))))
+	(set-window-buffer (selected-window) (car bfrs))
+	(let* ((nbuf (length bfrs))
+		   (w (selected-window))
+		   (h (window-height w))
+		   (split-height (/ h nbuf)))
+	  (loop for buf in (cdr bfrs) do
+			(setf w (split-window w split-height))
+			(select-window w)
+			(set-window-buffer w buf)))))
+
+
+
+(defun insert-buffer-name ()
+  (interactive)
+  (insert (buffer-name)))
+
+(defun strip-directory (dr)
+  (cadr (split-string dr "Directory ")))
+
+(defun insert-pwd ()
+  (interactive)
+  (insert (strip-directory (pwd))))
+
+(defun make-shell (name do)
+  (let ((sh (shell name)))
+	(comint-send-string sh do)
+	sh))
+
+(defun scheme-here ()
+  (interactive)
+  (switch-to-buffer (make-shell "scheme" "mred -z -e (current-directory (string->path \"~/\"))"))
+  (inferior-scheme-mode))
+
+(defun goog-prep (str)
+  (replace-regexp-in-string " " "+" str))
+
+(defun gs (start end)
+  (interactive "r")
+  (let ((search (buffer-substring start end)))
+	(shell-command (concat "firefox \"http://www.google.com/search?hl=en&q=%22" (goog-prep search) "%22&btnG=Google+Search\""))))
+
 
 (provide 'utils)

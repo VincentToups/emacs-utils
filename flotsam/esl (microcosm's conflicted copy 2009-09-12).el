@@ -53,17 +53,13 @@
 (def-esl-word print (print (esl-pop)))
 (def-esl-word drop-all (setf *esl-stack* nil))
 
-(setf *esl-called-from-hard-compiled* nil)
 (def-esl-word call 
   (let ((qtn (esl-pop)))
 	(if (functionp qtn) (funcall qtn)
 	  (progn
-		(if *esl-called-from-hard-compiled* 
-			(esl-eval-compiled qtn)
-		  (progn 
-			(if *esl-code-stack*
-				(push *esl-code-stack* *esl-return-stack*))
-			(setf *esl-code-stack* qtn)))))))
+		(if *esl-code-stack*
+			(push *esl-code-stack* *esl-return-stack*))
+		(setf *esl-code-stack* qtn)))))
 
 (def-esl-word over (esl-push (cadr *esl-stack*)))
 (def-esl-word dip (let ((qtn (esl-pop))
@@ -92,7 +88,6 @@
 							  (qtn (esl-pop)))
 						  (eval `(def-esl-word ,name 
 								   (push ',qtn *esl-return-stack*)))))
-
 (def-esl-word dup (esl-dup))
 (def-esl-word drop (esl-pop))
 (def-esl-word call-emacs-push 
@@ -114,6 +109,29 @@
 (defn_ quotedp [it]
   (and (listp it)
 	   (eq 'quote (car it))))
+
+(defn_ esl-hard-compile [esl-code]
+  (eval `(function (lambda nil ,@(let ((*esl-stack* esl-code))
+	(loop with output = nil 
+		  while *esl-stack* 
+		  do
+		  (let ((part (esl-pop)))
+			(cond
+			 
+			 ((listp part)
+			  (push (if (quotedp part)
+						`(esl-push ,part)
+					  `(esl-push (quote ,(esl-compile part)))) output))
+			 ((symbolp part)
+			  (cond ((parsing-word? (esl-mangle part))
+					 (funcall (esl-mangle part)))
+					(t
+					 (push (list (esl-mangle part)) output))))
+			 ((or 
+			   (numberp part)
+			   (stringp part))
+			  (push `(esl-push ,part) output))))
+		  finally (return (reverse output))))))))
 
 (defn_ esl-compile [esl-code]
   (let ((*esl-stack* esl-code))
@@ -138,6 +156,18 @@
 			  (push (eval `(function (lambda () (esl-push ,part)))) output))))
 		  finally (return (reverse output)))))
 
+(defn_ body-of [[l arg & body]]
+  body)
+
+(defn_ esl-soft->hard-compile [qtn]
+  (loop for el in qtn 
+		collect
+		(cond ((functionp el)
+			   (body-of el))
+			  ((symbolp el) 
+			   (list el)))))
+				  
+
 (defun esl-next-part ()
   (cond (*esl-code-stack*
 		 (pop *esl-code-stack*))
@@ -146,20 +176,16 @@
 		 (pop *esl-code-stack*))
 		(t 
 		 (error "Tried to get next part, but both the code stack and the return stack are empty - this should not happen."))))
-
+  
 
 (defun esl-eval-compiled (ccode)
-  (if (functionp ccode)
-	  (let ((*esl-called-from-hard-compiled* t))
-		(functionp ccode))
-	(let ((*esl-code-stack* ccode)
-		  (*esl-called-from-hard-compiled* nil))
-	  (loop while 
-			(or *esl-return-stack* 
-				*esl-code-stack*)
-			do
-			(let ((part (esl-next-part)))
-			  (funcall part))))))
+  (let ((*esl-code-stack* ccode))
+	(loop while 
+		  (or *esl-return-stack* 
+			  *esl-code-stack*)
+		  do
+		  (let ((part (esl-next-part)))
+			(funcall part)))))
   
 (defmacro* esl-do (&body body)
   `(esl-eval-compiled (esl-compile ',body)))
@@ -177,8 +203,6 @@
 
 (dont-do
  (esl-dop drop-all 1 (1 +) curry call))
-
-
 
 (esl-dop drop-all
   : when nil if end-word:)

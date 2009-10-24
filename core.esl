@@ -1,0 +1,157 @@
+: dip ;; ( &qt-arg x qtn -- qtn-val x )
+  swap retain> call <retain end-word:
+: keep ;; ( item qtn )
+    over ( call ) dip end-word:
+: when nil if end-word:						
+: loop ( call ) keep (loop) curry when end-word:
+: incr 1 + end-word:
+: hard-compile-qtn
+    1 'esl-soft->hard-compile  call-emacs-push end-word:
+: prefix
+    swap cons end-word:
+
+: length 1 'length call-emacs-push end-word:
+: 1list 1 'list call-emacs-push end-word:
+: <retain-keep retain-dup <retain end-word:
+: retain-drop <retain drop end-word:
+: nlist retain> '() ( cons dup length <retain-keep = not ) loop end-word:
+: 2append
+    2 'append call-emacs-push end-word:
+: suffix
+    1list 2append end-word:
+: call-emacs call-emacs-push drop end-word:
+: eval-with-emacs
+    1 'eval call-emacs end-word:
+
+: insert ;; ( string --  )
+    1 'insert call-emacs end-word:
+
+: nformat ;; ( fmt-string &data n -- str )
+    nlist swap prefix 'format swap 2 'apply call-emacs-push end-word:
+
+: wrap-interactive ;; ( interactive-sig name  --  )
+    retain> retain> retain-dup
+    'defun <retain retain-swap '(&rest args) '(interactive) <ret
+    '(loop for i in (reverse args) do (esl-push i)) '(esl-do) <retain suffix 6 nlist eval-with-emacs end-word:
+
+: nlist ;; ( &els n -- lst )
+  ( = not ) curry ( cons dup length ) swap compose  nil swap loop 
+end-word:
+
+: list-until ;; ( &els pred -- list )
+	( cons over ) swap compose () swap loop end-word:
+
+
+: stack-depth ;; ( -- n )
+  '(esl-push (length *esl-stack*)) eval-with-emacs
+end-word:
+
+: replace-regexp-in-string ;; ( string rep regexp -- string )
+  3 'replace-regexp-in-string call-emacs-push
+end-word:
+
+: regexp-quote ;; ( string -- regexp )
+  1 'regexp-quote call-emacs-push
+end-word:
+
+: pos? ;; ( n -- b )
+  0 > 
+end-word:
+
+: zero? ;; ( n -- b )
+  0 = 
+end-word:
+
+: neg? ;; ( n -- b )
+  0 <
+end-word:
+
+: bi ;; ( x qt qt -- ... )
+  ( keep ) dip call 
+end-word:
+
+: bi* ;; ( x y p q -- a b )
+  ( dip ) dip call end-word:
+
+: bi@ ;; ( x y q -- a b)
+  dup bi*
+end-word:
+
+: >=0? ( pos? ) ( zero? ) bi or end-word:
+
+: car ;; ( lst -- head )
+	1 'car call-emacs-push end-word:
+
+: cdr ;; ( lst -- tail )
+	1 'cdr call-emacs-push end-word:
+
+: head/tail ;; ( lst -- head tail )
+	( car ) ( cdr ) bi end-word:
+
+: tail/head ;; ( lst -- head tail )
+	( cdr ) ( car ) bi end-word:
+
+
+: list>stack ;; ( lst -- eN eN-1& )
+	( head/tail dup ) loop drop end-word:
+
+: reverse ;; ( lst -- lst )
+	1 'reverse call-emacs-push end-word:
+
+: map ;; ( sq qtn -- sq )
+	() swap ( ( swap cons ) curry dip ) currycompose  ( call dup ) curry ( tail/head ) swap compose loop drop reverse
+	( call ) curry
+	( tail/head ) swap com	odpuops e
+
+PARSING: {-- 
+   ( '--} eq not ) list-until reverse dup print
+  '( stack-depth push-retain ) swap 2append 
+  '( stack-depth pop-retain - dup >=0? not
+       ( "expected new elements on the stack in LIST:" error ) when
+       nlist)
+   2append
+   reverse 
+   list>stack
+end-word:
+
+
+: last-case? 
+
+: case ;;
+	( tail/head 
+
+: list-between-nested ;; ( els close open -- list )
+ ( ( = ) curry ) bi 
+end-word:
+
+drop-all '{ 1 2 3 '} '{ ( ( = when  ) curry ) bi@
+( (1 - ) compose ) ( (1 + ) compose ) bi*
+
+drop-all 1 2 ( 1 + ) bi@
+drop-all 1 2 3 ( 1 + ) keep
+drop-all {-- 1 2 3 4 5 --} 
+
+
+PARSING: LIST: 
+   ( 'END-LIST: eq not ) list-until reverse dup print
+  '( stack-depth push-retain ) swap 2append 
+  '( stack-depth pop-retain - dup >=0? not
+       ( "expected new elements on the stack in LIST:" error ) when
+       nlist)
+   2append
+   reverse 
+   list>stack
+end-word:
+
+
+LIST: "dogs" "cats" "home-" "run" 2concat END-LIST:
+drop drop
+
+
+1 2 3 rot
+
+
+
+
+
+
