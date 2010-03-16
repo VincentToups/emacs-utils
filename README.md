@@ -52,7 +52,33 @@ syntax deeply and the macros will do the right thing.  The macro
 
     (dlet [x 10 y 11] (+ x y)) ;-> 21
 
-All of them create lexical scopes.
+All of them create lexical scopes.  An alternative set of forms create
+dynamic scopes instead.  These are available as `fn_`, `defn_` and
+`dlet_`.
+
+Functions and the `dloop` and `dloop_` forms create recursion points
+so that the `recur` form causes a non-stack increasing recursion.
+This is implemented via a codewalking macro and the new `dsetq` form,
+which takes the same kind of input as a let, but setqs the values
+instead of creating a scope.  With these extensions you can write:
+
+	(dloop [x 0 output nil] 
+		   (if (> x 10) (reverse output)
+		   	   (recur (+ x 1) (cons x output))))
+
+Which evaluates to '(0 1 2 3 4 5 6 7 8 9 10).  Functions create
+implicit loop points, so you can implement the product function like
+so:
+
+    (defn prod 
+      ([[val & rest :as lst] acc]
+       (if (not lst) acc
+ 	     (recur rest (* val acc))))
+      ([lst]
+       (prod lst 1)))
+
+Recur does not cause stack to be consumed.  It compiles into the loop
+macro.  Anonymous functions also support `recur`.
 
 Monads!
 -------
@@ -105,6 +131,11 @@ can find moments of respite from writing my dissertation.
   
 Updates:
 --------
+
+Update 16 Mar 2010
+
+* finally implemented recur keywords.  Also implemented a
+  destructuring set operation.  Added a dloop macro.
 
 Update 28 Aug 2009
 

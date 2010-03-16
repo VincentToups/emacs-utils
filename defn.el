@@ -167,7 +167,43 @@
 				(dlet ,(list->vector rest)
 				  ,@body))))))
 
+(defun* build-dsetq* (pairs &optional (output (list 'progn)))
+  (if (= (length pairs) 0) (reverse output)
+	(let-seq (first-pair rest) (split-after-two pairs)
+			 (let ((forms 
+					(mapcar
+					 (lambda (x) (cons 'setq x))
+					 (pairs->dlet-binding-forms (list->vector first-pair)))))
+			   (build-dsetq* rest (append (reverse forms) output))))))
 
+(defmacro* dsetq* (&rest pairs)
+  (if (oddp (length pairs)) (error "dsetq needs an even number of elements.")
+	(build-dsetq* pairs)))
+
+(defun build-dsetq (pairs)
+  (let* ((val-forms (loop for form in pairs and i from 0 when (oddp i) collect form))
+		 (binders   (loop for form in pairs and i from 0 when (evenp i) collect form))
+		 (names (loop for i from 0 below (length val-forms) collect
+					  (gensym (format "dsetq-val-%d-" i))))
+		 (regular-let-binders
+		  (loop for form in val-forms and name in names collect
+				`(,name ,form))))
+	`(let ,regular-let-binders
+	   ,@(let ((setting-statements nil))
+		   (loop while binders do
+				 (let ((binder (pop binders))
+					   (name (pop names)))
+				   (setq setting-statements 
+						 (append setting-statements 
+								 (mapcar (lambda (x) (cons 'setq x))
+										 (pairs->dlet-binding-forms (vector binder name)))))))
+		   setting-statements))))
+
+
+
+(defmacro* dsetq (&rest pairs)
+  (if (oddp (length pairs)) (error "dsetq needs an even number of elements.")
+	(build-dsetq pairs)))
 										; (dlet [[a b] (list 10 10) y 11] (+ a b y))
 										; (dlet [[x y :as z] (list 1 2) b (+ x y)] (list x y b z))
 
@@ -255,7 +291,56 @@
 
 (setq currently-defining-defn 'lambda)
 
+
+
+(defun gen-fn-rec-binding (binders args-sym)
+  (vector (coerce binders 'vector) args-sym))
+
 (defmacro* fn (&rest rest)
+  (cond
+   ((vectorp (car rest))
+	`(fn (,(car rest) ,@(cdr rest))))
+   ((listp (car rest))	   ; set of different arity binders/bodies
+	(let ((args-sym (gensym))
+		  (numargs (gensym)))
+	  `(lambda (&rest ,args-sym) 
+		 (let ((,numargs (length ,args-sym)))
+		   (cond
+			,@(suffix (loop for pair in rest append
+							(let ((binders (car pair))
+								  (body (cdr pair)))
+							  (assert (vectorp binders) t (format "binder forms need to be vectors (error in %s)." currently-defining-defn))
+							  (assert (not (member :or (coerce binders 'list))) t (format "top-level defn binding forms can't contain an or clause because it conflicts with automatic arity dispatching (%s)." currently-defining-defn))
+							  `(((arity-match ,numargs ',(binder-arity binders))
+								 (dloop-single-arg
+								  ,(gen-fn-rec-binding binders args-sym)
+								  ,@body)))))
+					  `(t (error "Unable to find an arity match for %d args in fn %s." ,numargs ',currently-defining-defn))))))))
+   (t (error "Can't parse defn %s.  Defn needs a binder/body pair or a list of such pairs.  Neither appears to have been passed in. " currently-defining-defn))))
+
+(defmacro* fn_ (&rest rest)
+  (cond
+   ((vectorp (car rest))
+	`(fn_ (,(car rest) ,@(cdr rest))))
+   ((listp (car rest))	   ; set of different arity binders/bodies
+	(let ((args-sym (gensym))
+		  (numargs (gensym)))
+	  `(lambda (&rest ,args-sym) 
+		 (let ((,numargs (length ,args-sym)))
+		   (cond
+			,@(suffix (loop for pair in rest append
+							(let ((binders (car pair))
+								  (body (cdr pair)))
+							  (assert (vectorp binders) t (format "binder forms need to be vectors (error in %s)." currently-defining-defn))
+							  (assert (not (member :or (coerce binders 'list))) t (format "top-level defn binding forms can't contain an or clause because it conflicts with automatic arity dispatching (%s)." currently-defining-defn))
+							  `(((arity-match ,numargs ',(binder-arity binders))
+								 (dloop-single-arg_
+								  ,(gen-fn-rec-binding binders args-sym)
+								  ,@body)))))
+					  `(t (error "Unable to find an arity match for %d args in fn %s." ,numargs ',currently-defining-defn))))))))
+   (t (error "Can't parse defn %s.  Defn needs a binder/body pair or a list of such pairs.  Neither appears to have been passed in. " currently-defining-defn))))
+
+(defmacro* fn-non-rec (&rest rest)
   (cond
    ((vectorp (car rest))
 	`(fn (,(car rest) ,@(cdr rest))))
@@ -277,7 +362,8 @@
 					  `(t (error "Unable to find an arity match for %d args in fn %s." ,numargs ',currently-defining-defn))))))))
    (t (error "Can't parse defn %s.  Defn needs a binder/body pair or a list of such pairs.  Neither appears to have been passed in. " currently-defining-defn))))
 
-(defmacro* fn_ (&rest rest)
+
+(defmacro* fn-non-rec_ (&rest rest)
   (cond
    ((vectorp (car rest))
 	`(fn (,(car rest) ,@(cdr rest))))
@@ -294,8 +380,8 @@
 							  (assert (not (member :or (coerce binders 'list))) t (format "top-level defn binding forms can't contain an or clause because it conflicts with automatic arity dispatching (%s)." currently-defining-defn))
 							  `(((arity-match ,numargs ',(binder-arity binders))
 								 (let* ,(mapcar 
-												 (lambda (x) (coerce x 'list)) 
-												 (handle-binding binders args-sym)) ,@body)))))
+										 (lambda (x) (coerce x 'list)) 
+										 (handle-binding binders args-sym)) ,@body)))))
 					  `(t (error "Unable to find an arity match for %d args in fn %s." ,numargs ',currently-defining-defn))))))))
    (t (error "Can't parse defn %s.  Defn needs a binder/body pair or a list of such pairs.  Neither appears to have been passed in. " currently-defining-defn))))
 
@@ -304,7 +390,7 @@
 		interactives = nil
 		and
 		outforms = nil
-	    for form in forms do
+		for form in forms do
 		(if (and (listp form)
 				 (eq (car form) 'interactive))
 			(push form interactives)
@@ -337,6 +423,137 @@
 										;(defn defn-test [] (+ 1 1))
 										;(binder->type [])
 										;(defn defn-test ([x] (+ x 1)))
+
+(defun ifp (form) 
+  (and (listp form)
+	   (eq (car form) 'if)))
+(defun condp (form)
+  (and (listp form)
+	   (eq (car form) 'cond)))
+(defun casep (form)
+  (and (listp form)
+	   (eq (car form) 'case)))
+(defun recurp (form)
+  (and (listp form)
+	   (eq (car form) 'recur)))
+(defun prognp (form)
+  (and (listp form)
+	   (eq (car form) 'progn)))
+(defun expand-recur-cond-pair (cond-pair parent-is-tale loop-sentinal binding-forms)
+  `(,(car cond-pair)
+	,@(expand-recur (cdr cond-pair) parent-is-tale loop-sentinal binding-forms)))
+(defun expand-recur-recur (form parent-is-tale loop-sentinal binding-forms)
+  `(progn 
+	 (setq ,loop-sentinal t)
+	 (dsetq ,@(loop for b in (coerce binding-forms 'list) and v in (cdr form) 
+					collect b and collect v))))
+
+(defun* expand-recur (form parent-is-tale loop-sentinal binding-forms &optional (single-arg-recur nil))
+  (let ((mxform (macroexpand form)))
+	(cond ((symbolp mxform) mxform)
+		  ((numberp mxform) mxform)
+		  ((stringp mxform) mxform)
+		  ((arrayp  mxform) mxform)
+		  ((listp mxform)
+		   (case parent-is-tale
+			 (nil mxform)
+			 (t
+			  (cond
+			   ((ifp mxform)
+				`(if ,(cadr mxform) ,@(mapcar
+									   (lambda (x) (expand-recur x t loop-sentinal binding-forms single-arg-recur)) 
+									   (cddr mxform))))
+			   ((condp mxform)
+				`(cond
+				  ,@(map 
+					 (lambda (cond-pair) 
+					   (expand-recur-cond-pair 
+						cond-pair 
+						parent-is-tale 
+						loop-sentinal 
+						binding-forms))
+					 (cdr mxform))))
+			   ((casep mxform)
+				`(case ,(cadr mxform)
+				   ,@(map 
+					  (lambda (cond-pair) 
+						(expand-recur-cond-pair 
+						 cond-pair 
+						 parent-is-tale 
+						 loop-sentinal 
+						 binding-forms))
+					  (cddr mxform))))
+			   ((prognp mxform)
+				`(,@(reverse (cdr (reverse mxform)))
+				  ,(expand-recur (car (reverse mxform)) t loop-sentinal binding-forms single-arg-recur)))
+			   ((recurp mxform)
+				(if single-arg-recur
+					(expand-recur-recur `(recur (list ,@(cdr mxform)))
+											parent-is-tale loop-sentinal binding-forms)
+				(expand-recur-recur mxform parent-is-tale loop-sentinal binding-forms)))
+			   (t (progn
+					(if (> (length (filter (lambda (x) (and (symbolp x) (eq 'recur x))) (flatten mxform))) 0)
+						(error (format "Can't recur from a non-tail position in %s" mxform)))
+					mxform)))))))))
+
+(defmacro* dloop-single-arg (bindings &body body)
+  (let ((loop-sentinal (gensym "loop-sentinal"))
+		(return-value (gensym "return-value"))
+		(binding-parts (loop for el in (coerce bindings 'list) and i from 0
+							 when (evenp i) collect el)))
+	`(let ((,loop-sentinal t)
+		   (,return-value nil))
+	   (dlet ,bindings
+		 (loop while ,loop-sentinal do
+			   (setq ,return-value (progn
+									 (setq ,loop-sentinal nil)
+									 ,(expand-recur `(progn ,@body) t loop-sentinal binding-parts t))))
+		 ,return-value))))
+
+(defmacro* dloop-single-arg_ (bindings &body body)
+  (let ((loop-sentinal (gensym "loop-sentinal"))
+		(return-value (gensym "return-value"))
+		(binding-parts (loop for el in (coerce bindings 'list) and i from 0
+							 when (evenp i) collect el)))
+	`(let ((,loop-sentinal t)
+		   (,return-value nil))
+	   (dlet_ ,bindings
+		 (loop while ,loop-sentinal do
+			   (setq ,return-value (progn
+									 (setq ,loop-sentinal nil)
+									 ,(expand-recur `(progn ,@body) t loop-sentinal binding-parts t))))
+		 ,return-value))))
+
+
+(defmacro* dloop (bindings &body body)
+  (let ((loop-sentinal (gensym "loop-sentinal"))
+		(return-value (gensym "return-value"))
+		(binding-parts (loop for el in (coerce bindings 'list) and i from 0
+							 when (evenp i) collect el)))
+	`(let ((,loop-sentinal t)
+		   (,return-value nil))
+	   (dlet ,bindings
+		 (loop while ,loop-sentinal do
+			   (setq ,return-value (progn
+									 (setq ,loop-sentinal nil)
+									 ,(expand-recur `(progn ,@body) t loop-sentinal binding-parts))))
+		 ,return-value))))
+
+(defmacro* dloop_ (bindings &body body)
+  (let ((loop-sentinal (gensym "loop-sentinal"))
+		(return-value (gensym "return-value"))
+		(binding-parts (loop for el in (coerce bindings 'list) and i from 0
+							 when (evenp i) collect el)))
+	`(let ((,loop-sentinal t)
+		   (,return-value nil))
+	   (dlet_ ,bindings
+		 (loop while ,loop-sentinal do
+			   (setq ,return-value (progn
+									 (setq ,loop-sentinal nil)
+									 ,(expand-recur `(progn ,@body) t loop-sentinal binding-parts))))
+		 ,return-value))))
+
+
 
 (provide 'defn)
 
