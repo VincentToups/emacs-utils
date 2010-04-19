@@ -14,6 +14,8 @@
   (assert (vectorp vec) t "vector->list input not a vector.")
   (coerce vec 'list))
 
+(defun get-current-line-substring ()
+  (buffer-substring (get-beginning-of-line) (get-end-of-line)))
 
 (defun last-line? ()
   (save-excursion
@@ -67,8 +69,22 @@
 (defmacro jllet (bindings &rest body)
   `(lexical-let* ,(jlet-bindings->let-bindings bindings) ,@body))
 
+(defun in-string (sub str)
+  (let ((len-sub (length sub))
+		(len-str (length str)))
+	(loop with bool = nil 
+		  for i in (range 0 (- len-str len-sub)) do
+		  (setf bool (or bool 
+						 (string= sub (substring  str i (+ i len-sub)))))
+		  finally (return bool))))
+
 (defun* in (item lst &optional (pred #'eq))
-  (cond ((hash? lst)
+  "returns true if ITEM is in LST where LST might be a hash table.  PRED determines equality, defaults to eq."
+  (cond ((and 
+		  (stringp item)
+		  (stringp lst))
+		 (in-string item lst))
+		((hash? lst)
 		 (in item (keyshash lst) pred))
 		(t
 		 (let* ((found nil))
@@ -236,6 +252,7 @@
   (cl-gethash key tbl otherwise))
 
 (defun string-contains? (str re)
+  "Returns true of the regexp RE matches STR."
   (let ((new (replace-regexp-in-string re "" str)))
 	(not (string= new str))))
 
@@ -260,6 +277,7 @@
   (mapcar lam (valshash tbl)))
 
 (defun* join (lst &optional (del " "))
+  "Joins a LST of strings into a single string using delimiter DEL."
   (foldl (lambda (it ac)
 		   (concat ac it))
 		 "" 
@@ -275,16 +293,16 @@
 (defun chomp (str)
   "Perl-like chomp function to return a version of STR with no whitespace."
   (let ((s (if (symbolp str)(symbol-name str) str)))
-    (save-excursion
-      (while (and
-              (not (null (string-match "^\\( \\|\f\\|\t\\|\n\\)" s)))
-              (> (length s) (string-match "^\\( \\|\f\\|\t\\|\n\\)" s)))
-        (setq s (replace-match "" t nil s)))
-      (while (and
-              (not (null (string-match "\\( \\|\f\\|\t\\|\n\\)$" s)))
-              (> (length s) (string-match "\\( \\|\f\\|\t\\|\n\\)$" s)))
-        (setq s (replace-match "" t nil s))))
-    s))
+	(save-excursion
+	  (while (and
+			  (not (null (string-match "^\\( \\|\f\\|\t\\|\n\\)" s)))
+			  (> (length s) (string-match "^\\( \\|\f\\|\t\\|\n\\)" s)))
+		(setq s (replace-match "" t nil s)))
+	  (while (and
+			  (not (null (string-match "\\( \\|\f\\|\t\\|\n\\)$" s)))
+			  (> (length s) (string-match "\\( \\|\f\\|\t\\|\n\\)$" s)))
+		(setq s (replace-match "" t nil s))))
+	s))
 
 (defun build-on (machines body)
   `(if (any (mapcar (lambda (x)
@@ -298,15 +316,15 @@
 
 (defmacro* place-case (&rest pairs)
   `(case (quote ,(intern system-name))
-     ,@(loop for pair in pairs collect
-	     (cond 
-	      ((stringp (car pair))
-	       (cons `(quote ,(intern (car pair)))
-		     (cdr pair)))
-	      ((symbolp (car pair))
-	       (cons `(quote ,(car pair))
-		     (cdr pair)))
-	      (t (error "place-case needs places enumerated as either strings or symbols"))))))
+	 ,@(loop for pair in pairs collect
+			 (cond 
+			  ((stringp (car pair))
+			   (cons `(quote ,(intern (car pair)))
+					 (cdr pair)))
+			  ((symbolp (car pair))
+			   (cons `(quote ,(car pair))
+					 (cdr pair)))
+			  (t (error "place-case needs places enumerated as either strings or symbols"))))))
 
 (defmacro defvar-buf-loc (nm &optional vl do)
   `(progn (defvar ,nm ,vl ,do)
@@ -461,7 +479,7 @@
 (defun put-string-on-kill-ring (string)
   (setq kill-ring (cons string kill-ring))
   (if (> (length kill-ring) kill-ring-max)
-      (setcdr (nthcdr (1- kill-ring-max) kill-ring) nil))
+	  (setcdr (nthcdr (1- kill-ring-max) kill-ring) nil))
   (setq kill-ring-yank-pointer kill-ring))
 
 (defun ff/line->clipboard ()
@@ -469,7 +487,7 @@
   (let ((ln (line-number-at-pos))
 		(filename
 		 (buffer-file-name)))
-    (put-string-on-kill-ring 
+	(put-string-on-kill-ring 
 	 (format "(ff/line \"%s\" %d)" filename ln))))
 
 (defun ff/char->clipboard ()
@@ -477,7 +495,7 @@
   (let ((pt (point))
 		(filename
 		 (buffer-file-name)))
-    (put-string-on-kill-ring 
+	(put-string-on-kill-ring 
 	 (format "(ff/char \"%s\" %d)" filename pt))))
 
 (defun ff/this-text->clipboard (s e)
@@ -548,7 +566,21 @@
 
 (defun e (x) (expt 10 x))
 
+(defun print-buffers-matching (rx)
+  "Prints buffers matching RX"
+  (interactive "sEnter a Pattern:")
+  (let* ((bfrs 
+		  (sort (filter 
+				 (lambda (x) 
+				   (string-match rx (buffer-name x)))
+				 (buffer-list)) 
+				(lambda (b1 b2)
+				  (string< (buffer-name b1)
+						   (buffer-name b2))))))
+	(print (join (mapcar #'buffer-name bfrs) ","))))
+
 (defun show-buffers-matching (rx)
+  "Shows the buffers matching RX in newly created windows."
   (interactive "sEnter a Pattern:")
   (let* ((bfrs 
 		  (sort (filter 
@@ -598,6 +630,26 @@
   (interactive "r")
   (let ((search (buffer-substring start end)))
 	(shell-command (concat "firefox \"http://www.google.com/search?hl=en&q=%22" (goog-prep search) "%22&btnG=Google+Search\""))))
+
+(defmacro let-repeatedly (name &rest forms-to-apply)
+  `(let* ,(mapcar 
+		   (lambda (f) 
+			 `(,name ,f))
+		   forms-to-apply)
+	 ,name))
+
+(defun* ok-today? (&optional (p .3))
+  (> (/ (read (concat "#x" (substring (md5 (calendar-iso-date-string)) 0 2))) 31.0) p))
+
+(defmacro & (fs &rest args)
+  (let* ((s (format "%s" fs))
+		 (ff (split-string s "&"))
+		 (fs (reverse (mapcar #'intern ff)))
+		 (inside (cons (first fs) args)))
+	(loop with form = inside 
+		  for f in (cdr fs) do
+		  (setf form (list f form))
+		  finally (return form))))
 
 
 (provide 'utils)

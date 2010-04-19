@@ -297,6 +297,7 @@
   (vector (coerce binders 'vector) args-sym))
 
 (defmacro* fn (&rest rest)
+  "Clojure-style destructuring lambda (funcall (fn [[x y & r]] (list x y r)) '(1 2 3 4 5 6)) -> (1 2 (3 4 5 6))."
   (cond
    ((vectorp (car rest))
 	`(fn (,(car rest) ,@(cdr rest))))
@@ -307,18 +308,42 @@
 		 (let ((,numargs (length ,args-sym)))
 		   (cond
 			,@(suffix (loop for pair in rest append
-							(let ((binders (car pair))
-								  (body (cdr pair)))
-							  (assert (vectorp binders) t (format "binder forms need to be vectors (error in %s)." currently-defining-defn))
-							  (assert (not (member :or (coerce binders 'list))) t (format "top-level defn binding forms can't contain an or clause because it conflicts with automatic arity dispatching (%s)." currently-defining-defn))
+							(let* ((binders (car pair))
+								   (body (cdr pair))
+								   (expanded-body (macroexpand-all body))
+								   (uses-recur? ($ 'recur in (flatten expanded-body)))
+								   (apropriate-body 
+									(if uses-recur? 
+										`(dloop-single-arg
+										  ,(gen-fn-rec-binding binders args-sym)
+										  ,@expanded-body)
+									  `(lexical-let* ,(mapcar 
+													   (lambda (x) (coerce x 'list)) 
+													   (handle-binding binders args-sym)) ,@body))))
+							  (assert 
+							   (vectorp binders) 
+							   t 
+							   (format "binder forms need to be vectors (error in %s)." currently-defining-defn))
+							  (assert 
+							   (not (member :or (coerce binders 'list))) 
+							   t 
+							   (format 
+								"top-level defn binding forms can't contain an or clause because it conflicts with automatic arity dispatching (%s)." 
+								currently-defining-defn))
 							  `(((arity-match ,numargs ',(binder-arity binders))
-								 (dloop-single-arg
-								  ,(gen-fn-rec-binding binders args-sym)
-								  ,@body)))))
-					  `(t (error "Unable to find an arity match for %d args in fn %s." ,numargs ',currently-defining-defn))))))))
-   (t (error "Can't parse defn %s.  Defn needs a binder/body pair or a list of such pairs.  Neither appears to have been passed in. " currently-defining-defn))))
+								 ,apropriate-body))))
+					  `(t 
+						(error 
+						 "Unable to find an arity match for %d args in fn %s." 
+						 ,numargs 
+						 ',currently-defining-defn))))))))
+   (t 
+	(error 
+	 "Can't parse defn %s.  Defn needs a binder/body pair or a list of such pairs.  Neither appears to have been passed in. " 
+	 currently-defining-defn))))
 
 (defmacro* fn_ (&rest rest)
+  "Clojure-style destructuring lambda (funcall (fn [[x y & r]] (list x y r)) '(1 2 3 4 5 6)) -> (1 2 (3 4 5 6)).  Non-lexical binding version."
   (cond
    ((vectorp (car rest))
 	`(fn_ (,(car rest) ,@(cdr rest))))
@@ -329,61 +354,39 @@
 		 (let ((,numargs (length ,args-sym)))
 		   (cond
 			,@(suffix (loop for pair in rest append
-							(let ((binders (car pair))
-								  (body (cdr pair)))
-							  (assert (vectorp binders) t (format "binder forms need to be vectors (error in %s)." currently-defining-defn))
-							  (assert (not (member :or (coerce binders 'list))) t (format "top-level defn binding forms can't contain an or clause because it conflicts with automatic arity dispatching (%s)." currently-defining-defn))
+							(let* ((binders (car pair))
+								   (body (cdr pair))
+								   (expanded-body (macroexpand-all body))
+								   (uses-recur? ($ 'recur in (flatten expanded-body)))
+								   (apropriate-body 
+									(if uses-recur? 
+										`(dloop-single-arg_
+										  ,(gen-fn-rec-binding binders args-sym)
+										  ,@expanded-body)
+									  `(let* ,(mapcar 
+											   (lambda (x) (coerce x 'list)) 
+											   (handle-binding binders args-sym)) ,@body))))
+							  (assert 
+							   (vectorp binders) 
+							   t 
+							   (format "binder forms need to be vectors (error in %s)." currently-defining-defn))
+							  (assert 
+							   (not (member :or (coerce binders 'list))) 
+							   t 
+							   (format 
+								"top-level defn binding forms can't contain an or clause because it conflicts with automatic arity dispatching (%s)." 
+								currently-defining-defn))
 							  `(((arity-match ,numargs ',(binder-arity binders))
-								 (dloop-single-arg_
-								  ,(gen-fn-rec-binding binders args-sym)
-								  ,@body)))))
-					  `(t (error "Unable to find an arity match for %d args in fn %s." ,numargs ',currently-defining-defn))))))))
-   (t (error "Can't parse defn %s.  Defn needs a binder/body pair or a list of such pairs.  Neither appears to have been passed in. " currently-defining-defn))))
-
-(defmacro* fn-non-rec (&rest rest)
-  (cond
-   ((vectorp (car rest))
-	`(fn (,(car rest) ,@(cdr rest))))
-   ((listp (car rest))	   ; set of different arity binders/bodies
-	(let ((args-sym (gensym))
-		  (numargs (gensym)))
-	  `(lambda (&rest ,args-sym) 
-		 (let ((,numargs (length ,args-sym)))
-		   (cond
-			,@(suffix (loop for pair in rest append
-							(let ((binders (car pair))
-								  (body (cdr pair)))
-							  (assert (vectorp binders) t (format "binder forms need to be vectors (error in %s)." currently-defining-defn))
-							  (assert (not (member :or (coerce binders 'list))) t (format "top-level defn binding forms can't contain an or clause because it conflicts with automatic arity dispatching (%s)." currently-defining-defn))
-							  `(((arity-match ,numargs ',(binder-arity binders))
-								 (lexical-let* ,(mapcar 
-												 (lambda (x) (coerce x 'list)) 
-												 (handle-binding binders args-sym)) ,@body)))))
-					  `(t (error "Unable to find an arity match for %d args in fn %s." ,numargs ',currently-defining-defn))))))))
-   (t (error "Can't parse defn %s.  Defn needs a binder/body pair or a list of such pairs.  Neither appears to have been passed in. " currently-defining-defn))))
-
-
-(defmacro* fn-non-rec_ (&rest rest)
-  (cond
-   ((vectorp (car rest))
-	`(fn (,(car rest) ,@(cdr rest))))
-   ((listp (car rest))	   ; set of different arity binders/bodies
-	(let ((args-sym (gensym))
-		  (numargs (gensym)))
-	  `(lambda (&rest ,args-sym) 
-		 (let ((,numargs (length ,args-sym)))
-		   (cond
-			,@(suffix (loop for pair in rest append
-							(let ((binders (car pair))
-								  (body (cdr pair)))
-							  (assert (vectorp binders) t (format "binder forms need to be vectors (error in %s)." currently-defining-defn))
-							  (assert (not (member :or (coerce binders 'list))) t (format "top-level defn binding forms can't contain an or clause because it conflicts with automatic arity dispatching (%s)." currently-defining-defn))
-							  `(((arity-match ,numargs ',(binder-arity binders))
-								 (let* ,(mapcar 
-										 (lambda (x) (coerce x 'list)) 
-										 (handle-binding binders args-sym)) ,@body)))))
-					  `(t (error "Unable to find an arity match for %d args in fn %s." ,numargs ',currently-defining-defn))))))))
-   (t (error "Can't parse defn %s.  Defn needs a binder/body pair or a list of such pairs.  Neither appears to have been passed in. " currently-defining-defn))))
+								 ,apropriate-body))))
+					  `(t 
+						(error 
+						 "Unable to find an arity match for %d args in fn %s." 
+						 ,numargs 
+						 ',currently-defining-defn))))))))
+   (t 
+	(error 
+	 "Can't parse defn %s.  Defn needs a binder/body pair or a list of such pairs.  Neither appears to have been passed in. " 
+	 currently-defining-defn))))
 
 (defun extract-interactive-and-return (forms)
   (loop with 
@@ -398,7 +401,9 @@
 		finally 
 		(return (list (reverse interactives) (reverse outforms)))))
 
+
 (defmacro* defn (name &rest rest)
+  "Clojure-style function definition.  Supports recur and destructuring bind."
   (declare (indent defun))
   (let-seq (interactives clean-rest) (extract-interactive-and-return rest)
 		   (if ($ (length interactives) > 1) (error "Too many interactive forms in %s." name))
@@ -410,6 +415,7 @@
 					(apply ,undername ,args)))))))
 
 (defmacro* defn_ (name &rest rest)
+  "Clojure-style function definition.  Supports recur and destructuring bind.  Non-lexical binding version."
   (declare (indent defun))
   (let-seq (interactives clean-rest) (extract-interactive-and-return rest)
 		   (if ($ (length interactives) > 1) (error "Too many interactive forms in %s." name))
@@ -447,6 +453,18 @@
 	 (setq ,loop-sentinal t)
 	 (dsetq ,@(loop for b in (coerce binding-forms 'list) and v in (cdr form) 
 					collect b and collect v))))
+
+(defun let-likep (form)
+  (and (listp form)
+	   form
+	   (let ((f (car form)))
+		 (or
+		  (eq f 'let)
+		  (eq f 'flet)
+		  (eq f 'labels)
+		  (eq f 'lexical-let)
+		  (eq f 'lexical-let*)
+		  (eq f 'let*)))))
 
 (defun* expand-recur (form parent-is-tale loop-sentinal binding-forms &optional (single-arg-recur nil))
   (let ((mxform (macroexpand form)))
@@ -486,6 +504,17 @@
 			   ((prognp mxform)
 				`(,@(reverse (cdr (reverse mxform)))
 				  ,(expand-recur (car (reverse mxform)) t loop-sentinal binding-forms single-arg-recur)))
+			   ((let-likep mxform)
+				(let* ((letish (car mxform))
+					   (ll-binders (cadr mxform))
+					   (body (cddr mxform))
+					   (reverse-body (reverse body))
+					   (all-but-last (reverse (cdr reverse-body)))
+					   (last-item (car reverse-body)))
+				  `(,letish 
+					,ll-binders 
+					,@all-but-last 
+					,(expand-recur last-item t loop-sentinal binding-forms single-arg-recur))))
 			   ((recurp mxform)
 				(if single-arg-recur
 					(expand-recur-recur `(recur (list ,@(cdr mxform)))

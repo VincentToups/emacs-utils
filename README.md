@@ -131,6 +131,14 @@ can find moments of respite from writing my dissertation.
   
 Updates:
 --------
+Update 19 Apr 2010
+
+* fixed a bug in the expansion of recur wherein tail-calls inside
+  let-like forms (let, let*, lexical-let, lexical-let*, labels, flet)
+  would not expand.
+* Improved the fn and fn_ macros so that they do not compile to loops
+  if recur is not used in their bodies.  This is a tradeoff between
+  compilation and execution speed.
 
 Update 16 Mar 2010
 
