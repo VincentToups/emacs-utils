@@ -18,6 +18,3 @@
 
 (generate-plucking-pattern)
 
-
-
-  

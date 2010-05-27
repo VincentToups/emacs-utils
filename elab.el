@@ -34,10 +34,20 @@
 	   (not (nilp form))
 	   (equal (car form) 'progn)))
 
+(defun elab-expand-progn (form)
+  (let ((parts (mapcar #'form->matlab (cdr form))))
+	(format "apply(@(varargin) varargin{end},%s)" 
+			(join parts ", "))))
+
+(elab-expand-progn '(progn 1 2 "a"))"apply(@(varargin) varargin{end},1, 2, 'a')"
+
+(setq double-quote "\"")
+(setq single-quote "'")
+
 (defun form->matlab (form)
   (cond ((numberp form) (format "%s" form))
 		((stringp form)
-		 (replace-regexp-in-string "'" "''" formm))
+		 (concat single-quote (replace-regexp-in-string "'" "''" form) single-quote))
 		((symbolp form) (sym->camel-case form))
 		((listp form)
 		 (cond 

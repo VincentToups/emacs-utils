@@ -79,7 +79,7 @@
 		  finally (return bool))))
 
 (defun* in (item lst &optional (pred #'eq))
-  "returns true if ITEM is in LST where LST might be a hash table.  PRED determines equality, defaults to eq."
+  "returns true if ITEM is in LST where LST might be a hash table.  PRED determines equality, defaults to eq.  If item and lst are strings, then returns true if item is a substring of lst."
   (cond ((and 
 		  (stringp item)
 		  (stringp lst))
@@ -381,7 +381,6 @@
   (loop for i from 0 below (length inds) 
 		collect (elt sq (elt inds i))))
 
-(functionp (lambda (x) x))
 
 (defun split-list-left (lst pred)
   (if (not (functionp pred))
@@ -476,6 +475,7 @@
   (let ((buf (find-file filename)))
 	(goto-char char-number)))
 
+
 (defun put-string-on-kill-ring (string)
   (setq kill-ring (cons string kill-ring))
   (if (> (length kill-ring) kill-ring-max)
@@ -566,6 +566,14 @@
 
 (defun e (x) (expt 10 x))
 
+(defun buffers-matching (rx)
+  (sort (filter 
+		 (lambda (x) 
+		   (string-match rx (buffer-name x)))
+		 (buffer-list)) 
+		(lambda (b1 b2)
+		  (string< (buffer-name b1)
+				   (buffer-name b2)))))
 (defun print-buffers-matching (rx)
   "Prints buffers matching RX"
   (interactive "sEnter a Pattern:")
@@ -638,8 +646,8 @@
 		   forms-to-apply)
 	 ,name))
 
-(defun* ok-today? (&optional (p .3))
-  (> (/ (read (concat "#x" (substring (md5 (calendar-iso-date-string)) 0 2))) 31.0) p))
+(defun* ok-today? (&optional (p .4))
+  (> (/ (read (concat "#x" (substring (md5 (calendar-iso-date-string)) 0 2))) 255.0) p))
 
 (defmacro & (fs &rest args)
   (let* ((s (format "%s" fs))
@@ -650,6 +658,49 @@
 		  for f in (cdr fs) do
 		  (setf form (list f form))
 		  finally (return form))))
+
+(defun comint-send-strings (buf-or-proc &rest rest)
+  (let ((proc (if (bufferp buf-or-proc) (get-buffer-process buf-or-proc)
+				buf-or-proc)))
+	(loop for string in rest do
+		  (comint-send-string proc (concat string "\n")))))
+
+
+(defun* all-words (&optional (start (point-min)) (stop (point-max)))
+  (save-excursion 
+	(goto-char start)
+	(loop with last-pos = start
+		  while (forward-word 1) collect
+		  (prog1 (buffer-substring (save-excursion (backward-word) (point)) (point))
+			(setq last-pos (point))))))
+
+(defun insert-a-word ()
+  (interactive)
+  (insert (ido-completing-read "word: " (all-words) nil nil)))
+
+(defun* vert-hist (bins labels data (&optional (max 50)))
+  (let ((counts (make-vector (length bins) 0)))
+	(loop for point in data do
+		  (loop for bin in bins and 
+				i from 0
+				while (not 
+					   (and (>= point (car bin))
+							(< point (cadr bin))))
+				finally (setf (aref counts i)
+							  (+ 1 (aref counts i)))))
+	counts))
+
+(defun internf (s &rest args)
+  (intern (apply #'format (cons s args))))
+
+(defun insert-time ()
+  (interactive)
+  (insert (format-time-string "%Y-%m-%d-%R")))
+
+(defun word-list (s)
+  (mapcar #'org-trim (split-string s " ")))
+
+
 
 
 (provide 'utils)
