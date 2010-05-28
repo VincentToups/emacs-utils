@@ -81,7 +81,8 @@
   (cond 
    ((or (eq item 't) (eq item t)) `(push t *stack*))
    ((stack-wordp item) (handle-stack-word item))
-   ((stack-emacs-callp item) (handle-emacs-call item))))
+   ((stack-emacs-callp item) (handle-emacs-call item))
+   (t (error (format "stack: Can't figure out how to compile %s." item)))))
 
 (defmacro* with-stack- (&body code)
   `(progn
@@ -114,6 +115,10 @@
 
 (defun stack-at-least (n)
   (>= (length *stack*) n))
+
+(defun retain-stack-at-least (n)
+  (>= (length *retain-stack*) n))
+
 
 (defstackword print (print (pop *stack*)))
 (defstackword call
@@ -171,10 +176,10 @@
   (print (concat "stack:" (format "\n")
 				 (loop 
  				  with str = "" 
-  				  for object in *stack* do
+  				  for object in (reverse *stack*) do
 				  (setf str (concat str (format "- %s" object) (format "\n")))
 				  finally (return str)))))
-		
+
 (defstackword dupd 
   (let ((top (pop *stack*)))
 	(push (car *stack*) *stack*)
@@ -184,3 +189,45 @@
 (defstackword pick
   (push (elt *stack* 2) *stack*))
 
+(defstackword dip 
+  (if (stack-at-least 1)
+	  (let ((qtn (pop-stack))
+			(hold (pop-stack)))
+		(push-stack qtn)
+		(|||- call)
+		(push-stack hold))
+	(error "stack: dip requires at least a quotation on the stack.")))
+
+(defstackword swapd 
+  (if (stack-at-least 3)
+	  (let ((top (pop-stack)))
+		(|||- swap)
+		(push-stack top))
+	(error "stack: swapd requires at least three items on the stack.")))
+
+(defstackword rot 
+  (if (stack-at-least 3)
+	  (|||- swapd swap)
+	(error "stack: rot requires at least three items on the stack.")))
+
+(defstackword -rot 
+  (if (stack-at-least 3)
+	  (|||- swap swapd)
+	(error "stack: -rot requires at least three items on the stack.")))
+
+(defstackword tuck
+  (if (stack-at-least 2)
+	  (|||- swap over)))
+
+(defstackword >r 
+  (if (stack-at-least 1)
+	  (push (pop-stack) *retain-stack*)
+	(error "stack: >r requires at least something on the stack.")))
+
+(defstackword r>
+  (if (retain-stack-at-least 1)
+	  (push-stack (pop *retain-stack*))
+	(error "stack: r> requires at least one item on the retain stack.")))
+
+(defstackword keep
+  (|||- over '(call) dip))

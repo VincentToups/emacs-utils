@@ -107,3 +107,7 @@ Factor's style, not Forth's.
 I'd like to implement most of Factor's core vocabulary (where
 appropriate) and then I really want to implement the `fry` word as
 well as some functional things like `map` and `fold`.
+
+# Updates #
+
+28 May 2010: added a bunch of stack-words.
