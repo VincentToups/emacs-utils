@@ -71,6 +71,26 @@ they are defined by using emacs lisp.
             (arg2 (pop *stack*)))
          (push (+ arg1 arg2) *stack*)))
 
+Note that with the current implementation, you can sort of write
+words in the stack language itself using the emacs macro `|||-` (as
+opposed to `|||`).  Whereas `|||` introduces a stack language form
+with a fresh, empty stack (and retain stack, for those who care),
+`|||-` uses the stack currently in the dynamic scope.  So we could
+define the "push to the retain stack" word in two ways:
+
+    (defstackword >r 
+       (push (pop *stack*) *retain-stack*))
+
+(using pure emacs lisp) or:
+
+    (defstackword >r 
+       (|||- '(push) swap 1>list compose '(*retain-stack*) compose
+       1>eval drop))
+
+Here we use lists and the compose operator to construct an emacs lisp
+phrase and pass it to eval.  Not the most obvious way of doing things,
+but a nice example.
+
 When the language encounters a symbol during compilation, it first
 checks to see if there is a stack word associated with it, _then_ it
 tries to expand it into an emacs lisp call.  If it can't do either, an
@@ -82,5 +102,8 @@ quotations (`curry`, `compose`), and some words for doing control
 (`if`, and `loop`).  Where possible, I am going to hew pretty close to
 Factor's style, not Forth's.
 
-Have fun!
+# Future #
 
+I'd like to implement most of Factor's core vocabulary (where
+appropriate) and then I really want to implement the `fry` word as
+well as some functional things like `map` and `fold`.
