@@ -111,3 +111,7 @@ well as some functional things like `map` and `fold`.
 # Updates #
 
 28 May 2010: added a bunch of stack-words.
+
+29 May 2010: added more stack words of the bi family, also created a
+bivalent-stack-word macro for quickly declaring stack word interfaces
+to emacs lisp functions which usually take two arguments

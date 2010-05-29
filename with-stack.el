@@ -90,6 +90,8 @@
 			 (let ((item (car code)))
 			   (setf code (cdr code)) 
 			   (cond 
+				((eq item nil)
+				 `(push nil *stack*))
 				((stack-atomp item)
 				 (handle-stack-atom item))
 				((symbolp item)
@@ -102,6 +104,8 @@
 			 (let ((item (car code)))
 			   (setf code (cdr code)) 
 			   (cond 
+				((eq item nil)
+				 `(push nil *stack*))
 				((stack-atomp item)
 				 (handle-stack-atom item))
 				((symbolp item)
@@ -119,6 +123,9 @@
 (defun retain-stack-at-least (n)
   (>= (length *retain-stack*) n))
 
+(defmacro bivalent-stack-word (s)
+  `(defstackword ,s 
+	 (|||- ,(intern (format "2>%s" s)))))
 
 (defstackword print (print (pop *stack*)))
 (defstackword call
@@ -175,8 +182,8 @@
 (defstackword print-stack 
   (print (concat "stack:" (format "\n")
 				 (loop 
- 				  with str = "" 
-  				  for object in (reverse *stack*) do
+				  with str = "" 
+				  for object in (reverse *stack*) do
 				  (setf str (concat str (format "- %s" object) (format "\n")))
 				  finally (return str)))))
 
@@ -231,3 +238,31 @@
 
 (defstackword keep
   (|||- over '(call) dip))
+
+(defstackword bi 
+  (|||- '(keep) dip call))
+
+(defstackword + 
+  (|||- 2>+))
+(defstackword -
+  (|||- 2>-))
+(defstackword *
+  (|||- 2>*))
+(defstackword /
+  (|||- 2>/))
+(defstackword and 
+  (|||- 2>and))
+(defstackword or
+  (|||-> 2>or))
+
+(defstackword stack 
+  (push-stack *stack*))
+
+(defstackword retain-stack
+  (push-stack *retain-stack*))
+
+(defstackword bi*
+  (|||- '(dip) dip call))
+
+(defstackword bi@
+  (|||- dup bi*))
