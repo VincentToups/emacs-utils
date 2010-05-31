@@ -91,6 +91,13 @@ Here we use lists and the compose operator to construct an emacs lisp
 phrase and pass it to eval.  Not the most obvious way of doing things,
 but a nice example.
 
+You can now also implement words within the stack language itself.  
+
+    (||| word: plus-eleven 11 + end:)
+    (||| '( 22 + ) 'plus-twenty-two set-word!)
+    (||| 12 plus-eleven ) ;-> 23
+    (||| 1 plus-twenty-two) ;-> 23
+
 When the language encounters a symbol during compilation, it first
 checks to see if there is a stack word associated with it, _then_ it
 tries to expand it into an emacs lisp call.  If it can't do either, an
@@ -102,11 +109,39 @@ quotations (`curry`, `compose`), and some words for doing control
 (`if`, and `loop`).  Where possible, I am going to hew pretty close to
 Factor's style, not Forth's.
 
+# The Fry Word #
+
+One of the things to wrap your head around when learning factor is
+that flat quotations serve the same role as lambda does in a non-stack
+based language.  Since there is no scope, by default, in a stack
+language one creates closures by taking values on the stack in
+inserting them into quotations in particular ways.  The `curry` and
+`compose` words do this in the emacs stack language (like in Factor):
+
+    (||| 4 '(2>+) curry 'plus-four set-word! 5 plus-four) ;-> 9
+
+Since quotations are lists, curry is the same as `2>cons`.  
+
+    (||| '(4) '(2>+) compose 'plus-four set-word! 5 plus-four) ;-> 9
+
+Again, its easy to see that compose is the same as `2>append`.  For
+complicated quotation construction, this can get tedious, so Factor
+and this language provide the `fry` word.  `fry` takes a quotation,
+and traverses it, filling in `_` and `@` with objects from the stack.
+If a `_` is encountered, then an item from the stack is inserted
+directly into the quotation.  An `@` causes the item, which must be a
+list, to be "spliced" into the quotation.  The items are spliced in
+from right to left:
+
+    (||| 4 '(_ 2>+) fry) ;-> (4 2>+)
+    (||| '(2 2 2>+) '(@ 2>+) fry) -> (2 2 2>+ 2>+)
+
+This makes it easier to construct closure-like quotations.
+
 # Future #
 
-I'd like to implement most of Factor's core vocabulary (where
-appropriate) and then I really want to implement the `fry` word as
-well as some functional things like `map` and `fold`.
+I'd like to implement functional words like `map` and `fold`.
+
 
 # Updates #
 
@@ -115,3 +150,5 @@ well as some functional things like `map` and `fold`.
 29 May 2010: added more stack words of the bi family, also created a
 bivalent-stack-word macro for quickly declaring stack word interfaces
 to emacs lisp functions which usually take two arguments
+
+30 May 2010: added `word:` defining word and the `fry` word.

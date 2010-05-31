@@ -38,9 +38,9 @@
 
 (defun handle-immediate-stackword (item)
   (let ((*stack* code)
-		(*retain-stack* nil)
-		(*old-stack* *stack*)) 
-	(funcall (car (tbl *stack-words* item)))))
+		(*retain-stack* nil))
+	(funcall (car (tbl *stack-words* item)))
+	(setf code *stack*)))
 
 (defun handle-stack-word (item)
   (if (stackword-immediatep item) (handle-immediate-stackword item)
@@ -266,3 +266,56 @@
 
 (defstackword bi@
   (|||- dup bi*))
+
+(defun fill-in-fry (qtn)
+  (reverse (loop for item in (reverse qtn) collect
+				 (cond 
+				  ((and (symbolp item)
+						(eq item '_))
+				   (pop-stack))
+				  ((listp item)
+				   (mapcar #'fill-in-fry item))
+				  (t item)))))
+
+(defun fill-in-fry (future)
+  (reverse (fill-in-fry-natural (reverse future) nil)))
+
+(defun fill-in-fry-natural (future past)
+  (if (not future) past
+	(let* ((item (car future))
+		   (rest (cdr future))
+		   (more-past 
+			(cond ((symbolp item)
+				   (cond ((eq '_ item) (append past (list (pop-stack))))
+						 ((eq '@ item) (append past (pop-stack)))
+						 (t (append past (list item)))))
+				  ((listp item) (append past (list (fill-in-fry-natural item nil))))
+				  (t (append past (list item))))))
+	  (fill-in-fry-natural rest more-past))))
+
+(defstackword fry 
+  (assert (stack-at-least 1) "stack: fry needs at least a quotation on the stack.")
+  (let ((partial-quotation (pop-stack)))
+	(push-stack (fill-in-fry partial-quotation))))
+
+(defstackword set-word! 
+  (assert (stack-at-least 2) "stack: set-word requires two arguments on the stack.")
+  (let ((name (pop-stack))
+		(body (pop-stack)))
+	(assert (symbolp name) "stack: top of stack must be a symbol in set-word!.")
+	(assert (listp body) "stack: second argument of set-word! must be a quotation.")
+	(eval `(defstackword ,name (|||- ,@body)))))
+
+(defstackword-immediate word: 
+  (let ((name (pop-stack))
+		(body 
+		 (loop while (not (eq 'end: (car *stack*))) collect (pop-stack))))
+	(pop-stack)
+	(eval `(defstackword ,name (|||- ,@body)))))
+
+
+
+
+
+
+	
