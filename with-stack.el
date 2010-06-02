@@ -267,6 +267,9 @@
 (defstackword bi@
   (|||- dup bi*))
 
+(defstackword 2drop
+  (|||- drop drop))
+
 (defun fill-in-fry (qtn)
   (reverse (loop for item in (reverse qtn) collect
 				 (cond 
@@ -307,15 +310,49 @@
 	(eval `(defstackword ,name (|||- ,@body)))))
 
 (defstackword-immediate word: 
-  (let ((name (pop-stack))
-		(body 
-		 (loop while (not (eq 'end: (car *stack*))) collect (pop-stack))))
+  (let* ((name (pop-stack))
+		 (body 
+		  (loop while (not (eq 'end: (car *stack*))) 
+				collect (prog1 
+							(pop-stack)
+						  (if (= 0 (length *stack*)) (error (format "stack: Couldn't find the end of the stack-word: %s" name)))))))
 	(pop-stack)
 	(eval `(defstackword ,name (|||- ,@body)))))
 
+(||| word: head&tail '(1>car) '(1>cdr) bi end:)
+(||| word: tail&head head&tail swap end:)
+(||| word: map-get-next-item rot tail&head '(-rot) dip end:)
+(||| word: map ;( seq qtn -- newseq )
+     nil
+     '(map-get-next-item pick call swap 2>cons pick 1>length 0 2>= 1>not) loop
+	 '(2drop) dip 1>reverse
+     end:)
+
+(defmacro assert-stack-predicates (predicates word-name)
+  `(progn 
+	 ,@(loop for pred in predicates 
+			 and i from 0 collect
+			 `(if (not (,pred (elt *stack* ,i))) (error ,(format 
+												 "stack: stack element %d must pass predicate %s in %s"
+												 i
+												 pred
+												 word-name))))))
+
+(defun stack-quotationp (x)
+  (listp x))
 
 
+(defstackword leach 
+  (assert (stack-at-least 2) "stack: leach requires at least two items on the stack.")
+  (assert-stack-predicates (stack-quotationp listp) leach)
+  (let ((qtn (pop-stack))
+		(seq (pop-stack)))
+	(loop for item in seq do 
+		  (push-stack item)
+		  (push-stack qtn)
+		  (|||- call))))
 
+(||| word: foldl ;( list init qtn -- result )
+	 swapd leach end:)
 
-
-	
+(provide 'with-stack)
