@@ -700,7 +700,11 @@
 (defun word-list (s)
   (mapcar #'org-trim (split-string s " ")))
 
-
-
+(defun vector->list (v)
+  (assert (vectorp v) "vector->list needs a vector input.")
+  (coerce v 'list))
+(defun list->vector (ll)
+  (assert (listp ll) "vector->list needs a list input.")
+  (coerce ll 'vector))
 
 (provide 'utils)

@@ -154,4 +154,5 @@ to emacs lisp functions which usually take two arguments
 30 May 2010: added `word:` defining word and the `fry` word.
 
 31 May 2010: added stack type checking macros for use in el, added
-foldl and leach words.
+foldl and leach words.  Added an "assert-stack-predicates" word which
+checks the types on the stack simply and easily.

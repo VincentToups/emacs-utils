@@ -330,21 +330,26 @@
 
 (defmacro assert-stack-predicates (predicates word-name)
   `(progn 
-	 ,@(loop for pred in predicates 
+	 ,@(loop for pred in (reverse predicates)
 			 and i from 0 collect
 			 `(if (not (,pred (elt *stack* ,i))) (error ,(format 
-												 "stack: stack element %d must pass predicate %s in %s"
-												 i
-												 pred
-												 word-name))))))
+														  "stack: stack element %d must pass predicate %s in %s"
+														  i
+														  pred
+														  word-name))))))
 
 (defun stack-quotationp (x)
   (listp x))
 
+(defstackword assert-stack-predicates 
+  (assert-stack-predicates (listp symbolp) assert-stack-predicates)
+  (let ((name (pop-stack))
+		(predicates (pop-stack)))
+	(eval `(assert-stack-predicates ,predicates ,name))))
 
 (defstackword leach 
   (assert (stack-at-least 2) "stack: leach requires at least two items on the stack.")
-  (assert-stack-predicates (stack-quotationp listp) leach)
+  (assert-stack-predicates (listp stack-quotationp) leach)
   (let ((qtn (pop-stack))
 		(seq (pop-stack)))
 	(loop for item in seq do 
