@@ -447,12 +447,17 @@
 	   (eq (car form) 'progn)))
 (defun expand-recur-cond-pair (cond-pair parent-is-tale loop-sentinal binding-forms)
   `(,(car cond-pair)
-	,@(expand-recur (cdr cond-pair) parent-is-tale loop-sentinal binding-forms)))
+	,@(cdr (expand-recur `(progn ,@(cdr cond-pair)) parent-is-tale loop-sentinal binding-forms))))
+;; (defun expand-recur-recur (form parent-is-tale loop-sentinal binding-forms)
+;;   `(progn 
+;; 	 (setq ,loop-sentinal t)
+;; 	 (dsetq ,@(loop for b in (coerce binding-forms 'list) and v in (cdr form) 
+;; 					collect b and collect v))))
 (defun expand-recur-recur (form parent-is-tale loop-sentinal binding-forms)
   `(progn 
 	 (setq ,loop-sentinal t)
-	 (dsetq ,@(loop for b in (coerce binding-forms 'list) and v in (cdr form) 
-					collect b and collect v))))
+	 (dsetq ,@binding-forms (list ,@(cdr form)))))
+
 
 (defun let-likep (form)
   (and (listp form)
@@ -483,7 +488,7 @@
 									   (cddr mxform))))
 			   ((condp mxform)
 				`(cond
-				  ,@(map 
+				  ,@(mapcar 
 					 (lambda (cond-pair) 
 					   (expand-recur-cond-pair 
 						cond-pair 
@@ -493,7 +498,7 @@
 					 (cdr mxform))))
 			   ((casep mxform)
 				`(case ,(cadr mxform)
-				   ,@(map 
+				   ,@(mapcar 
 					  (lambda (cond-pair) 
 						(expand-recur-cond-pair 
 						 cond-pair 

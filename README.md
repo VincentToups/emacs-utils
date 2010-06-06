@@ -221,3 +221,5 @@ Most useful in the utils package may be a pair of functions for creating and man
 	 (tbl! :x 10 :y 11) ; creates a hash table with keys :x, :y and associated values
 	 (tbl a-table :x) ; returns the value at key :x
 
+Update 5 June 2010
+* Corrected a bug in defn expansion with recur.

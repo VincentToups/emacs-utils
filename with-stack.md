@@ -109,6 +109,28 @@ quotations (`curry`, `compose`), and some words for doing control
 (`if`, and `loop`).  Where possible, I am going to hew pretty close to
 Factor's style, not Forth's.
 
+# Interpolation #
+
+You can use the stack to work with emacs values using stack
+interpolation.  This can be accessed in two ways.  In the first, you
+surround a variable name with `{}` to push that emacs variable value
+on the stack:
+
+    (let ((x 10))
+      (||| {x} 25 +)) ;-> 35
+
+In the second you use the immediate word `lisp-val:`, which does the
+same thing.
+
+    (let ((x 10))
+      (||| lisp-val: x 25 +)) ;-> 35
+
+Lisp val is an immediate word, so it is evaluated at compile time,
+with the future words and values making up the stack language source
+code on the stack.  Immediate words transform the source code of the
+emacs stack language at run time.  You can create them using
+`defstackword-immediate`.
+
 # The Fry Word #
 
 One of the things to wrap your head around when learning factor is
@@ -155,4 +177,6 @@ to emacs lisp functions which usually take two arguments
 
 31 May 2010: added stack type checking macros for use in el, added
 foldl and leach words.  Added an "assert-stack-predicates" word which
-checks the types on the stack simply and easily.
+checks the types on the stack simply and easily.  
+
+6 June 2010: added interpolation syntax and immediate word.

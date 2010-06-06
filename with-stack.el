@@ -40,7 +40,8 @@
   (let ((*stack* code)
 		(*retain-stack* nil))
 	(funcall (car (tbl *stack-words* item)))
-	(setf code *stack*)))
+	(setf code *stack*))
+  nil)
 
 (defun handle-stack-word (item)
   (if (stackword-immediatep item) (handle-immediate-stackword item)
@@ -77,45 +78,62 @@
 						`(,s (pop *stack*)))
 			  (push (,sym ,@(reverse temp-syms)) *stack*))))))
 
+(defun stack-interpolationp (item)
+  (let* ((s (format "%s" item))
+		 (n (length s)))
+	(and (string= (substring s 0 1) "{")
+		 (string= (substring s (- n 1) n) "}"))))
+
+(defun stack-get-interpolation-symbol (item)
+  (let* ((s (format "%s" item))
+		 (n (length s)))
+	(intern (substring s 1 (- n 1)))))
+
+(defun handle-stack-interpolation (item)
+  `(push ,(stack-get-interpolation-symbol item) *stack*))
+
 (defun handle-stack-symbol (item)
   (cond 
    ((or (eq item 't) (eq item t)) `(push t *stack*))
    ((stack-wordp item) (handle-stack-word item))
    ((stack-emacs-callp item) (handle-emacs-call item))
+   ((stack-interpolationp item) (handle-stack-interpolation item))
    (t (error (format "stack: Can't figure out how to compile %s." item)))))
 
 (defmacro* with-stack- (&body code)
   `(progn
-	 ,@(loop while code collect
-			 (let ((item (car code)))
-			   (setf code (cdr code)) 
-			   (cond 
-				((eq item nil)
-				 `(push nil *stack*))
-				((stack-atomp item)
-				 (handle-stack-atom item))
-				((symbolp item)
-				 (handle-stack-symbol item)))))))
+	 ,@(filter #'identity (loop while code collect
+								(let ((item (car code)))
+								  (setf code (cdr code)) 
+								  (cond 
+								   ((eq item nil)
+									`(push nil *stack*))
+								   ((stack-atomp item)
+									(handle-stack-atom item))
+								   ((symbolp item)
+									(handle-stack-symbol item))))))))
 
 (defmacro* with-stack (&body code)
   `(let ((*stack* nil)
 		 (*retain-stack* nil))
-	 ,@(loop while code collect
-			 (let ((item (car code)))
-			   (setf code (cdr code)) 
-			   (cond 
-				((eq item nil)
-				 `(push nil *stack*))
-				((stack-atomp item)
-				 (handle-stack-atom item))
-				((symbolp item)
-				 (handle-stack-symbol item)))))
+	 ,@(filter #'identity (loop while code collect
+								(let ((item (car code)))
+								  (setf code (cdr code)) 
+								  (cond 
+								   ((eq item nil)
+									`(push nil *stack*))
+								   ((stack-atomp item)
+									(handle-stack-atom item))
+								   ((symbolp item)
+									(handle-stack-symbol item))))))
 	 (car *stack*)))
 
 (defmacro* ||| (&body body)
   `(with-stack ,@body))
 (defmacro* |||- (&body body)
   `(with-stack- ,@body))
+(defmacro* |||p (&body body)
+  `(with-stack ,@body print-stack))
 
 (defun stack-at-least (n)
   (>= (length *stack*) n))
@@ -359,5 +377,27 @@
 
 (||| word: foldl ;( list init qtn -- result )
 	 swapd leach end:)
+
+(defstackword-immediate lisp-val: 
+  (assert (stack-at-least 1) "stack: lisp-val: needs one word after it, at least.")
+  (assert-stack-predicates (symbolp) 'lisp-val:)
+  (let ((s (pop-stack)))
+	(push-stack (internf "{%s}" s))))
+
+(defstackword 2dip
+  (assert (stack-at-least 3) "stack: 2dip needs at least three arguments on the stack.")
+  (assert-stack-predicates (stack-quotationp) '2dip)
+  (let ((q (pop-stack))
+		(a (pop-stack))
+		(b (pop-stack)))
+	(push-stack b)
+	(push-stack a)
+	(push-stack q)
+	(|||- call)))
+
+;; (defstackword stack->list-until ;( symbol {items} symbol -- list )
+;;   (|||- '(_ 2>eq) fry nil swap '( '(2>cons) dip 
+
+
 
 (provide 'with-stack)

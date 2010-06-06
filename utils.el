@@ -508,6 +508,7 @@
 
 (defun ff/this-text (filename txt)
   (with-current-buffer (find-file filename)
+	(goto-char (point-min))
 	(word-search-forward txt)))
 
 (defun pwd->kill-ring ()
@@ -646,7 +647,7 @@
 		   forms-to-apply)
 	 ,name))
 
-(defun* ok-today? (&optional (p .4))
+(defun* ok-today? (&optional (p .3))
   (> (/ (read (concat "#x" (substring (md5 (calendar-iso-date-string)) 0 2))) 255.0) p))
 
 (defmacro & (fs &rest args)
@@ -706,5 +707,8 @@
 (defun list->vector (ll)
   (assert (listp ll) "vector->list needs a list input.")
   (coerce ll 'vector))
+
+(defun functional-sort (list pred)
+  (sort (copy-sequence list) pred))
 
 (provide 'utils)
