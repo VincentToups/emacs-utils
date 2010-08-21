@@ -42,6 +42,11 @@
   (setq *letter-symbols*
 		'(let let* lexical-let lexical-let*))
 
+  (defun function-formp (form)
+	(and (non-empty-listp form)
+		 (eq (car form) 'function)))
+
+
   (defun prognp (form)
 	(and (non-empty-listp form)
 		 (eq (car form) 'progn)))
@@ -50,6 +55,10 @@
 	(and (non-empty-listp form)
 		 (eq (car form) 'prog1)))
 
+  (defun prog-like (form)
+	(or (prognp form)
+		(prog1p form)))
+
   (defun letp (o)
 	(and (non-empty-listp o)
 		 (eq (car o) 'let)))
@@ -57,6 +66,13 @@
 	(and (non-empty-listp o)
 		 (eq (car o) 'let*)))
 
+  (defun defunp (o)
+	(and (non-empty-listp o)
+		 (eq (car o) 'defun)))
+
+  (defun setqp (o)
+	(and (non-empty-listp o)
+		 (eq (car o) 'setq)))
 
   (defun let-likep (o)
 	(and (non-empty-listp o)
@@ -70,6 +86,17 @@
 
   (defun let-form-binds-symbolp (sym form)
 	($ sym in (mapcar #'car (second form))))
+
+  (defun condp (o)
+	(and (non-empty-listp o) 
+		 (eq (car o) 'cond)))
+
+  (defun* count-free-usages-cond (sym form &optional (n 0))
+	(sum (cons n (mapcar 
+				  (lambda (x)
+					(+ (count-free-usages sym (car x))
+					   (count-free-usages sym (cadr x))))
+				  (cdr form)))))
 
   (defun get-let-body (let-form) 
 	(cddr let-form))
@@ -177,6 +204,42 @@
 					   (lambda (sform)
 						 (count-free-usages sym sform))
 					   (get-lambda-body form))))))
+	   ((condp form)
+		(count-free-usages-cond sym form n))
+	   ((setterp form)
+		(apply #'+
+			   (cons n 
+					 (mapcar
+					  (lambda (sform)
+						(count-free-usages sym sform))
+					  (get-setter-expressions form)))))
+	   (t (apply #'+ (cons n (mapcar (lambda (subform) 
+									   (count-free-usages sym subform 0))
+									 (cdr form)))))))))
+  (defun* count-free-usages-functions (sym form &optional (n 0))
+	(cond
+	 ((symbolp form)
+	  (if (eq form sym) (+ n 1) n))
+	 ((numberp form) n)
+	 ((stringp form) n)
+	 ((listp form)
+	  (cond
+	   ((or (prog1p form) (prognp form))
+		(apply #'+ (cons n (mapcar 
+							(lambda (sform) (count-free-usages sym sform)) 
+							(cdr form)))))
+	   ((let-likep form)
+		(count-free-usages-let-like sym form n))
+	   ((lambdap form)
+		(if (lambda-form-binds-symbolp sym form) n
+		  (apply #'+ (cons 
+					  n
+					  (mapcar 
+					   (lambda (sform)
+						 (count-free-usages sym sform))
+					   (get-lambda-body form))))))
+	   ((condp form)
+		(count-free-usages-cond sym form n))
 	   ((setterp form)
 		(apply #'+
 			   (cons n 
@@ -217,17 +280,26 @@
   (defun optimize-let-form (form)
 	(fix #'optimize-let-form-once form 10))
 
-)
+  (defun symbols-in-form (form)
+	(unique (filter #'symbolp (flatten form))))
+
+  (defun nil->tbl (x)
+	(if x x (tbl!)))
+
+
+(setf *fundamentals* '(if let let* cond lambda defun))
 
 (dont-do 
+ (symbols-in-form '(let ((a 10) (y 11)) (+ a y x)))
  (optimize-let-form '(let* ((x 10) (y 11) (z (+ x x))) (+ x z)))
  (count-free-usages 'x '(let ((y 11) (z (+ x x))) (+ x z)))
  (get-let-body '(let ((y 11) (z (+ x x))) (+ x z)))
 
  (count-free-usages 'x '(let ((x 10) (y 11) (z (+ x x))) (+ x z)))
+ (count-free-usages 'x '(let* ((x 10) (y 11) (z (x x x))) (+ x z)))
  (count-free-usages 'z '(let* nil (+ x z)))
  (length (get-let-binders '(let* nil (+ x z))))
  (count-free-usages-let* 'z '(let* nil (+ x z)))
- (count-free-usages 'z (get-let-body '(let* nil (+ x z))) 0))
+ (count-free-usages 'z (get-let-body '(let* nil (+ x z))) 0)))
 
 (provide 'macro-utils)

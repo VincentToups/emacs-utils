@@ -95,6 +95,7 @@
 (defun handle-stack-symbol (item)
   (cond 
    ((or (eq item 't) (eq item t)) `(push t *stack*))
+   ((keywordp item) `(push ,item *stack*))
    ((stack-wordp item) (handle-stack-word item))
    ((stack-emacs-callp item) (handle-emacs-call item))
    ((stack-interpolationp item) (handle-stack-interpolation item))
@@ -111,7 +112,8 @@
 								   ((stack-atomp item)
 									(handle-stack-atom item))
 								   ((symbolp item)
-									(handle-stack-symbol item))))))))
+									(handle-stack-symbol item))))))
+	 (car *stack*)))
 
 (defmacro* with-stack (&body code)
   `(let ((*stack* nil)
@@ -144,6 +146,28 @@
 (defmacro bivalent-stack-word (s)
   `(defstackword ,s 
 	 (|||- ,(intern (format "2>%s" s)))))
+
+(defmacro bivalent-stack-words (&rest ss)
+  `(progn ,@(loop for s in ss collect 
+				 `(bivalent-stack-word ,s))))
+
+(defmacro univalent-stack-word (s)
+  `(defstackword ,s 
+	 (|||- ,(intern (format "1>%s" s)))))
+
+(defmacro univalent-stack-words (&rest ss)
+  `(progn ,@(loop for s in ss collect 
+				 `(univalent-stack-word ,s))))
+
+(defmacro n-valent-stack-word (n s)
+  `(defstackword ,s 
+	 (|||- ,(intern (format "%d>%s" n s)))))
+
+(defmacro n-valent-stack-words (n &rest ss)
+  `(progn ,@(loop for s in ss collect
+				  `(n-valent-stack-word ,n ,s))))
+
+
 
 (defstackword print (print (pop *stack*)))
 (defstackword call
@@ -271,7 +295,16 @@
 (defstackword and 
   (|||- 2>and))
 (defstackword or
-  (|||-> 2>or))
+  (|||- 2>or))
+(bivalent-stack-word >)
+(bivalent-stack-word <)
+(bivalent-stack-word >=)
+(bivalent-stack-word <=)
+(bivalent-stack-word =)
+(bivalent-stack-word eq)
+(bivalent-stack-word equal)
+
+
 
 (defstackword stack 
   (push-stack *stack*))
@@ -341,10 +374,10 @@
 (||| word: tail&head head&tail swap end:)
 (||| word: map-get-next-item rot tail&head '(-rot) dip end:)
 (||| word: map ;( seq qtn -- newseq )
-     nil
-     '(map-get-next-item pick call swap 2>cons pick 1>length 0 2>= 1>not) loop
+	 nil
+	 '(map-get-next-item pick call swap 2>cons pick 1>length 0 2>= 1>not) loop
 	 '(2drop) dip 1>reverse
-     end:)
+	 end:)
 
 (defmacro assert-stack-predicates (predicates word-name)
   `(progn 
@@ -380,9 +413,9 @@
 
 (defstackword-immediate lisp-val: 
   (assert (stack-at-least 1) "stack: lisp-val: needs one word after it, at least.")
-  (assert-stack-predicates (symbolp) 'lisp-val:)
-  (let ((s (pop-stack)))
-	(push-stack (internf "{%s}" s))))
+  (let ((expr (pop-stack)))
+	(push-stack '1>eval)
+	(push-stack `(quote ,expr))))
 
 (defstackword 2dip
   (assert (stack-at-least 3) "stack: 2dip needs at least three arguments on the stack.")
@@ -390,14 +423,57 @@
   (let ((q (pop-stack))
 		(a (pop-stack))
 		(b (pop-stack)))
-	(push-stack b)
-	(push-stack a)
 	(push-stack q)
-	(|||- call)))
+	(|||- call)
+	(push-stack b)
+	(push-stack a)))
 
-;; (defstackword stack->list-until ;( symbol {items} symbol -- list )
-;;   (|||- '(_ 2>eq) fry nil swap '( '(2>cons) dip 
+(defstackword rearrange ;( ... arrangement - ... )
+  (assert-stack-predicates (stack-quotationp) 'rearrange)
+  (let* ((arrangement (pop-stack))
+		 (to-drop (+ 1 (apply #'max arrangement))))
+	(assert (stack-at-least to-drop) (format "stack: rearrange needs a stack with enough elements to re-arrange."))
+	(let ((new-vals (elts *stack* arrangement)))
+	  (loop for i from 1 to to-drop do (pop-stack))
+	  (setf *stack* (append (reverse new-vals) *stack*)))))
 
+;; (defstackword swipe ;( ... item qtn -- ... item ... )
+;;   (assert-stack-predicates (stack-quotationp) 'swipe)
+;;   (assert (stack-at-least 2) "stack: swipe needs at least two elements on the stack")
+;;   (let ((qtn (pop-stack))
+;; 		(item (pop-stack))
+;; 		(depth (length *stack*))
+;; 		(holder nil))
+;; 	(push-stack qtn)
+;; 	(|||- call)
+;; 	(let* ((new-depth (length *stack*))
+;; 		   (n-new (- new-depth depth)))
+;; 	  (if (>= n-new 0) 
+;; 		  (progn (loop for i from 1 to n-new do
+;; 					   (push (pop-stack) holder))
+;; 				 (push-stack item)
+;; 				 (loop for i from 1 to n-new do
+;; 					   (push-stack (pop holder))))))))
+
+
+(defstackword filter ;( lst quot -- lst )
+  (assert (stack-at-least 2) "stack: filter requires 2 items on the stack.")
+  (assert-stack-predicates (stack-quotationp listp) 'filter)
+  (let ((qtn (pop-stack))
+		(lst (pop-stack)))
+	(push-stack (loop for i in lst when 
+					  (prog1 (|||- {i} {qtn} call)
+						(pop-stack))
+					  collect i))))
+
+(defstackword in ;( item lst -- bool )
+  (|||- 2>in))
+
+
+
+(univalent-stack-words car cdr cadr first second third fourth list regexp-quote rxq reverse)
+(bivalent-stack-words split-string join)
+(n-valent-stack-words 3 replace-regexp-in-string reprxstr)
 
 
 (provide 'with-stack)

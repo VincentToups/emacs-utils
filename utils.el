@@ -78,6 +78,10 @@
 						 (string= sub (substring  str i (+ i len-sub)))))
 		  finally (return bool))))
 
+(defun in-string (sub str)
+  (let ((new-string (replace-regexp-in-string sub "" str)))
+	(not (string= new-string str))))
+
 (defun* in (item lst &optional (pred #'eq))
   "returns true if ITEM is in LST where LST might be a hash table.  PRED determines equality, defaults to eq.  If item and lst are strings, then returns true if item is a substring of lst."
   (cond ((and 
@@ -247,6 +251,8 @@
 	(if (= 1 (length res))
 		(car res)
 	  res)))
+
+(defsetf tbl tbl!)
 
 (defun* tbl-or (tbl key &optional (otherwise nil))
   (cl-gethash key tbl otherwise))
@@ -612,8 +618,11 @@
 
 
 (defun insert-buffer-name ()
+  "Inserts the name of the current buffer, eliding the extension if it is obviously there."
   (interactive)
-  (insert (buffer-name)))
+  (insert (replace-regexp-in-string "\\..*$" "" (buffer-name))))
+
+
 
 (defun strip-directory (dr)
   (cadr (split-string dr "Directory ")))
@@ -709,6 +718,190 @@
   (coerce ll 'vector))
 
 (defun functional-sort (list pred)
+  "Sorts LIST with PRED functionally."
   (sort (copy-sequence list) pred))
+
+(defun wd ()
+  (replace-regexp-in-string "Directory " "" (pwd)))
+
+(defun files-wd (&rest rest)
+  (apply #'directory-files (cons (wd) rest)))
+
+(dont-do
+ (wd))
+
+(defun* alist (alist el)
+  (cadr (assoc el alist)))
+(defun* alist-or (alist el &optional (or-val nil))
+  (let ((v (assoc el alist)))
+	(if v v or-val)))
+(defun* qalist (alist el)
+  (cdr (assq el alist)))
+(defun* qalist-or (alist el &optional (or-val nil))
+  (let ((v (assq el alist)))
+	(if v v or-val)))
+
+(defun alist-conjugate (alst key fun)
+  (let ((val (alist alst key)))
+	(alist>> alst key (funcall fun val))))
+
+(defun alist-cons (alst key value)
+  (alist-conjugate alst key 
+				   (lexical-let ((value value))
+					 (lambda (xxx) (cons value xxx)))))
+
+(defun dissoc (alist &rest keys)
+  (let ((keys (flatten keys)))
+	(loop for element in alist when
+		  (let ((alist-el-key 
+				 (if (listp element)
+					 (car element)
+				   element)))
+			(not ($ alist-el-key in keys)))
+		  collect element)))
+
+(defun* alist>> (&optional alist &rest rest)
+  (cond 
+   ((and (eq nil alist)
+		 (eq nil rest))
+	nil)
+   ((and (listp alist)
+		 (eq nil rest))
+	alist)
+   ((and (not (listp alist))
+		 (not (eq nil rest)))
+	(foldl #'cons nil (reverse (bunch-list (cons alist rest)))))
+   ((and (listp alist)
+		 (not (eq nil rest)))
+	(let* ((pairs (bunch-list rest))
+		   (symbols (mapcar #'car pairs))
+		   (dalist (dissoc alist symbols)))
+	  (foldl #'cons dalist (reverse (bunch-list rest)))))))
+   
+  ;; (if alist
+  ;; 	  (if (not (listp alist))
+  ;; 		  (apply #'alist>> (cons nil (cons alist rest)))
+  ;; 		(foldl #'cons alist (reverse (bunch-list rest))))
+  ;; 	alist))
+
+;; (defun alist>> (&rest rest)
+;;   (let ((narg (length rest)))
+;; 	(cond
+;; 	 ((= 0 narg) nil)
+;; 	 ((> narg 0)
+;; 	  (let ((alist (if (listp (car rest)) 
+;; 					   (let ((alist (pop rest)))
+;; 						 (dissoc alist 
+;; 								 (loop for it in rest and
+;; 									   i from 0 when (evenp i)
+;; 									   collect it))								 
+;; 						 nil))))
+;; 			(append (bunch-list rest) alist))))))
+
+(defun alist-inp (list-element key)
+  (if (listp list-element)
+	  (equal (car list-element) key)
+	(equal list-element key)))
+
+(defun and-over (pred lst)
+  (foldl (lambda (it ac)
+		   (and (funcall pred it) ac))
+		 t
+		 lst))
+
+
+(defun or-over (pred lst)
+  (foldl (lambda (it ac)
+		   (or (funcall pred it) ac))
+		 nil
+		 lst))
+
+(defun permute-list (lst)
+  (sort* (copy-list lst)
+		 (lambda (a b)
+		   (< (random) (random)))))
+
+(defun buffer-line ()
+  (buffer-substring-no-properties (get-beginning-of-line) (get-end-of-line)))
+
+(defun org-line->list (str)
+  (mapcar #'chomp (split-string str (regexp-quote "|"))))
+
+(defun cleave ( list-of-funs args )
+  (let ((args (if (listp args) args (list args))))
+	(loop for f in list-of-funs collect
+		  (apply f args))))
+
+
+
+(defun* capture-shell (command &optional (args ""))
+  (let* ((command-part (car (split-string command " ")))
+		 (args (concat (replace-regexp-in-string command-part "" command)
+					   args)))
+	(chomp-lines (split-string (with-temp-buffer 
+								 (call-process-shell-command command-part nil 
+															 (buffer-name (current-buffer))
+															 nil args)
+								 (accept-process-output)
+								 (buffer-substring (point-min) (point-max))) lb))))
+
+(defmacro la (args &rest body)
+  `(lambda ,args ,@body))
+
+(defun rxq (string)
+  "rxq is a shorthand for regexp-quote."
+  (regexp-quote string))
+
+(defun reprxstr (rx rep str &optional fixedcase literal subexp start)
+  "reprxstr is a shorthand for replace-regexp-in-string."
+  (replace-regexp-in-string rx rep str fixedcase literal subexp start))
+
+(defun uncapitalize (s)
+  (let ((first (substring s 0 1))
+		(rest (substring s 1 (length s))))
+	(concat (downcase first)
+			rest)))
+
+(defun remove-first-or-last-if (lst pred)
+  (let-repeatedly lst 
+				  (if (funcall pred (car lst)) (cdr lst) lst)
+				  (if (funcall pred (car (last lst)))
+					  (butlast lst 1) lst)))
+
+(defun* chomp-lines (lst &optional (pred (lambda (x) (string= "" (chomp x)))))
+  (fix 
+   (lambda (x) (remove-first-or-last-if x pred))
+   lst))
+
+(defun region->camelcase (start end)
+  (interactive "r")
+  (let* ((reg (buffer-substring start end))
+		 (rep (uncapitalize (join (mapcar
+								   (lambda (x)
+									 (capitalize x))
+								   (split-string reg (rxq "_"))) ""))))
+	(kill-region start end)
+	(insert rep)))
+
+(defun cd-shell ()
+  (cd (with-current-buffer "*shell*"
+		(wd))))
+
+(defmacro* with-wd (d &body body)
+  (let ((current-directory (gensym "current-directory-")))
+	`(let ((,current-directory (wd)))
+	   (cd ,d)
+	   (prog1 
+		   (progn ,@body)
+		 (cd ,current-directory)))))
+
+(defmacro* with-shell-directory (&body body)
+  `(with-wd 
+	(with-current-buffer "*shell*" (wd))
+	,@body))
+
+(defun shell-to-here ()
+  (interactive)
+  (comint-send-strings (get-buffer "*shell*") (concat "cd " (wd))))
 
 (provide 'utils)

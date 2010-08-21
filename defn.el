@@ -69,6 +69,22 @@
 										; (handle-seq-binder [a b c d :or [1 2 3 4]] '(list 1 2 3 4) '())
 										; (handle-seq-binder [] '() '())
 
+(defun table-like-get (tbl-like kw)
+  (cond ((hash-table-p tbl-like) (tbl tbl-like kw))
+		((listp tbl-like) (cadr (assq kw tbl-like)))))
+(defun* table-like-get-or (tbl-like kw &optional (or-val nil))
+  (cond ((hash-table-p tbl-like) (tbl-or tbl-like kw or-val))
+		((listp tbl-like) 
+		 (let ((v (assoc-default kw tbl-like #'eq nil)))
+		   (if v (car v) or-val)))))
+
+(dont-do
+ (table-like-get (tbl! :x 10 :y 10) :x)
+ (table-like-get-or (tbl! :x 10 :y 10) :z 'z)
+ (table-like-get (alist>> :x 20 :y 30) :x)
+ (table-like-get-or (alist>> :x 20 :y 50) :x 'z)
+ (cadr (assoc-default :x '((:x 10) (:y 20)))))
+
 
 (defun handle-tbl-binding (binder expr previous-lets)
   (let-seq (sub-binders 
@@ -97,8 +113,8 @@
 					 and sym in sub-binders
 					 append
 					 (if (not or-form)
-						 (handle-binding sym `(tbl ,as-sym ,kw))
-					   (handle-binding sym `(tbl-or ,as-sym ,kw (tbl ,or-form-name ,kw)))))))))
+						 (handle-binding sym `(table-like-get ,as-sym ,kw))
+					   (handle-binding sym `(table-like-get-or ,as-sym ,kw (table-like-get ,or-form-name ,kw)))))))))
 
 										; (handle-tbl-binding [:: [a b] :x y :y :as table :or (tbl! :x [1 2])] '(tbl 'x 10 'y 11) '())
 										; (handle-tbl-binding [:: [a b :as q] :x :keys [y z]] '(tbl :x 10 :y 11 :z 14) '())
@@ -137,7 +153,7 @@
 
 (defun split-after-two (lst)
   (list (elts lst (range 2))
-        (elts lst (range 2 (length lst)))))
+		(elts lst (range 2 (length lst)))))
 
 										; (split-after-two '(1 2))
 										; (split-after-two '(1 2 3 4 5 6 7 8))
@@ -147,7 +163,7 @@
   (declare (indent 1))
   (cond 
    ((= 0 (length pairs))
-    `(progn ,@body))
+	`(progn ,@body))
    (t 
 	(let-seq (first-pair rest)
 			 (split-after-two pairs)
@@ -159,7 +175,7 @@
   (declare (indent 1))
   (cond 
    ((= 0 (length pairs))
-    `(progn ,@body))
+	`(progn ,@body))
    (t 
 	(let-seq (first-pair rest)
 			 (split-after-two pairs)
