@@ -1,6 +1,7 @@
 How to use a codewalking macro to implement a lexically scoped `delay`
+----------------------------------------------------------------------
 in Emacs Lisp 
-
+-------------
 Lazyness is all the rage in these days of Haskell and Clojure, and it
 comes in many forms.  Haskell is lazy by default, clojure supports
 laziness extensively, but it is still voluntary.  Some scheme
