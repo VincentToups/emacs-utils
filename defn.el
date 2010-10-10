@@ -69,14 +69,14 @@
 										; (handle-seq-binder [a b c d :or [1 2 3 4]] '(list 1 2 3 4) '())
 										; (handle-seq-binder [] '() '())
 
-(defun table-like-get (tbl-like kw)
-  (cond ((hash-table-p tbl-like) (tbl tbl-like kw))
-		((listp tbl-like) (cadr (assq kw tbl-like)))))
-(defun* table-like-get-or (tbl-like kw &optional (or-val nil))
-  (cond ((hash-table-p tbl-like) (tbl-or tbl-like kw or-val))
-		((listp tbl-like) 
-		 (let ((v (assoc-default kw tbl-like #'eq nil)))
-		   (if v (car v) or-val)))))
+;; (defun table-like-get (tbl-like kw)
+;;   (cond ((hash-table-p tbl-like) (tbl tbl-like kw))
+;; 		((listp tbl-like) (cadr (assq kw tbl-like)))))
+;; (defun* table-like-get-or (tbl-like kw &optional (or-val nil))
+;;   (cond ((hash-table-p tbl-like) (tbl-or tbl-like kw or-val))
+;; 		((listp tbl-like) 
+;; 		 (let ((v (assoc-default kw tbl-like #'eq nil)))
+;; 		   (if v (car v) or-val)))))
 
 (dont-do
  (table-like-get (tbl! :x 10 :y 10) :x)
@@ -557,7 +557,7 @@
 		 (loop while ,loop-sentinal do
 			   (setq ,return-value (progn
 									 (setq ,loop-sentinal nil)
-									 ,(expand-recur `(progn ,@body) t loop-sentinal binding-parts t))))
+									 ,(expand-recur `(progn ,@body) t loop-sentinal binding-parts ))))
 		 ,return-value))))
 
 (defmacro* dloop-single-arg_ (bindings &body body)
@@ -571,7 +571,7 @@
 		 (loop while ,loop-sentinal do
 			   (setq ,return-value (progn
 									 (setq ,loop-sentinal nil)
-									 ,(expand-recur `(progn ,@body) t loop-sentinal binding-parts t))))
+									 ,(expand-recur `(progn ,@body) t loop-sentinal binding-parts ))))
 		 ,return-value))))
 
 

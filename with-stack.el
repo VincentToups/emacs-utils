@@ -471,9 +471,9 @@
 
 
 
-(univalent-stack-words car cdr cadr first second third fourth list regexp-quote rxq reverse)
+(univalent-stack-words car cdr cadr first second third fourth list regexp-quote rxq reverse length)
 (bivalent-stack-words split-string join)
-(n-valent-stack-words 3 replace-regexp-in-string reprxstr)
+(n-valent-stack-words 3 replace-regexp-in-string reprxstr substring)
 
 
 (provide 'with-stack)

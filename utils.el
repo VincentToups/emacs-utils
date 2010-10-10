@@ -100,12 +100,12 @@
 		   found))))
 
 (defun* unique (lst &optional (pred #'eq))
-  (foldl
+  (reverse (foldl
    (lambda (it ac)
 	 (if (in it ac pred) ac
 	   (cons it ac)))
    '()
-   lst))
+   lst)))
 
 (defun insertf (&rest args)
   (insert (apply #'format  args)))
@@ -170,6 +170,13 @@
 
 (defun list? (&rest args)
   (apply #'listp args))
+
+(defun flatten-once (lst)
+  (foldl (lambda (it ac)
+		   (if (listp it) (append ac it)
+			 (suffix ac it)))
+		 nil
+		 lst))
 
 (defun flatten (lst)
   (reverse
@@ -730,6 +737,8 @@
 (dont-do
  (wd))
 
+
+
 (defun* alist (alist el)
   (cadr (assoc el alist)))
 (defun* alist-or (alist el &optional (or-val nil))
@@ -740,6 +749,17 @@
 (defun* qalist-or (alist el &optional (or-val nil))
   (let ((v (assq el alist)))
 	(if v v or-val)))
+
+(defun alist-in (root keys)
+  (foldl (lambda (it ac)
+		   (alist ac it))
+		 root
+		 keys))
+
+(defun alist>>-in (root keys val)
+  (if (= (length keys) 1) (alist>> (car keys) val)
+	(alist>> root (car keys)
+			 (alist>>-in (alist root (car keys)) (cdr keys) val))))
 
 (defun alist-conjugate (alst key fun)
   (let ((val (alist alst key)))
@@ -777,12 +797,27 @@
 		   (symbols (mapcar #'car pairs))
 		   (dalist (dissoc alist symbols)))
 	  (foldl #'cons dalist (reverse (bunch-list rest)))))))
-   
-  ;; (if alist
-  ;; 	  (if (not (listp alist))
-  ;; 		  (apply #'alist>> (cons nil (cons alist rest)))
-  ;; 		(foldl #'cons alist (reverse (bunch-list rest))))
-  ;; 	alist))
+
+(defun alist-keys (alist)
+  (mapcar #'car alist))
+
+(defmacro eq-commute (fun a b)
+  `(eq (funcall ,fun ,a) (funcall ,fun ,b)))
+(defmacro bool-commute (comp fun a b)
+  `(,comp (funcall ,fun ,a) (funcall ,fun ,b)))
+
+(defun macroexpand-eval-last-sexp ()
+  (interactive)
+  (print (eval (macroexpand-all (pp-last-sexp)))))
+
+(global-set-key [\C-ce] 'macroexpand-eval-last-sexp)
+
+
+;; (if alist
+;; 	  (if (not (listp alist))
+;; 		  (apply #'alist>> (cons nil (cons alist rest)))
+;; 		(foldl #'cons alist (reverse (bunch-list rest))))
+;; 	alist))
 
 ;; (defun alist>> (&rest rest)
 ;;   (let ((narg (length rest)))
@@ -824,6 +859,13 @@
 (defun buffer-line ()
   (buffer-substring-no-properties (get-beginning-of-line) (get-end-of-line)))
 
+(defun buffer-all-lines ()
+  (save-excursion (goto-char (point-min))
+				  (loop collect
+						(buffer-line)
+						while (= (forward-line 1) 0))))
+
+
 (defun org-line->list (str)
   (mapcar #'chomp (split-string str (regexp-quote "|"))))
 
@@ -844,6 +886,9 @@
 															 nil args)
 								 (accept-process-output)
 								 (buffer-substring (point-min) (point-max))) lb))))
+(defun* sh (command &optional (args ""))
+  "sh command args - Send a command to the shell, get back the result as a list of strings."
+  (capture-shell command args))
 
 (defmacro la (args &rest body)
   `(lambda ,args ,@body))
@@ -903,5 +948,77 @@
 (defun shell-to-here ()
   (interactive)
   (comint-send-strings (get-buffer "*shell*") (concat "cd " (wd))))
+
+(defun concatf (strings &rest rest)
+  (apply #'format (apply #'concat strings) rest))
+
+(defun filter-by-index (pred list)
+  (loop for item in list and index from 0 
+		when (funcall pred index) collect item))
+
+(defun odd-indexed-elements (list)
+  (filter-by-index #'oddp list))
+
+(defun even-indexed-elements (list)
+  (filter-by-index #'evenp list))
+
+(defun factor (n)
+  (mapcar #'read (cdr (split-string (car (capture-shell "factor" (format "%d" n))) " " t))))
+
+(defun table-like-get (tbl-like kw)
+  (cond ((hash-table-p tbl-like) (tbl tbl-like kw))
+		((listp tbl-like) (cadr (assq kw tbl-like)))))
+(defun* table-like-get-or (tbl-like kw &optional (or-val nil))
+  (cond ((hash-table-p tbl-like) (tbl-or tbl-like kw or-val))
+		((listp tbl-like) 
+		 (let ((v (assoc-default kw tbl-like #'eq nil)))
+		   (if v (car v) or-val)))))
+
+(defun print-and-return (x)
+  (cl-prettyprint x)
+  x)
+
+(defmacro always (val)
+  (let ((s (gensym "always-"))
+		(r (gensym "rest-")))
+	`(lexical-let ((,s ,val))
+	   (lambda (&rest ,r)
+		 ,s))))
+
+(defun cut-region-replace (s)
+  (interactive "s")
+  (kill-region (point) (mark))
+  (insert s))
+
+
+(defmacro* lex-lambda (arglist &body body)
+  (let* ((actual-args (filter 
+					   (lambda (x) 
+						 (let ((x (format "%s" x)))
+						   (and (not (string= x "&rest"))
+								(not (string= x "&optional")))))
+					   arglist))
+		 (lex-forms (mapcar (lambda (x) (list x x))
+							actual-args)))
+	`(lambda ,arglist
+	   (lexical-let ,lex-forms ,@body))))
+
+(defmacro* lex-defun (name arglist doc &body body)
+  (let* ((actual-args (filter 
+					   (lambda (x) 
+						 (let ((x (format "%s" x)))
+						   (and (not (string= x "&rest"))
+								(not (string= x "&optional")))))
+					   arglist))
+		 (lex-forms (mapcar (lambda (x) (list x x))
+							actual-args)))
+	(if (stringp doc)
+		`(defun ,name ,arglist ,doc
+		   (lexical-let ,lex-forms ,@body))
+	  `(defun ,name ,arglist 
+		 (lexical-let ,lex-forms ,doc ,@body)))))
+
+
+
 
 (provide 'utils)

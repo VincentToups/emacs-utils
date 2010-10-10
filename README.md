@@ -223,3 +223,12 @@ Most useful in the utils package may be a pair of functions for creating and man
 
 Update 5 June 2010
 * Corrected a bug in defn expansion with recur.
+
+Update 10 Oct 2010
+* added lots of bug fixes, codewalking macros and functions to help
+write them, `capturing-defun` and `capturing-lambda` which attempt to
+meaningfully capture their apparent lexical scope (don't really work)
+* added lex-lambda and lex-defun which automatically create lexical
+scopes around their bodies containing their args.
+* implemented monadic parser combinators using the monads in monads.el
+* added lots more stack language functions.

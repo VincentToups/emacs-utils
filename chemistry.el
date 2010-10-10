@@ -1,5 +1,8 @@
 (require 'with-stack)
 (require 'eperiodic)
+(require 'defn)
+(require 'monads)
+(require 'functional)
 
 (defun element-name (element)
   (||| 'name {element} 2>assoc 1>cdr))
@@ -100,3 +103,161 @@
 		   nil))))
 
 (setf chemical-names (||| {eperiodic-element-properties} '(1>element-symbol) map))
+
+(defun generate-conditions (alist)
+  (foldl (lambda (it ac)
+		   (domonad monad-seq 
+					[a-case ac
+							component (cadr it)]
+					(cons (list (car it) component) a-case)))
+		 (domonad monad-seq 
+				  [q (cadr (car alist))]
+				  (list (list (car (car alist)) q)))
+		 (cdr alist)))
+(defun generate-conditions>> (&rest rest)
+  (generate-conditions (apply #'alist>> rest)))
+
+(defun sort-condition (condition-list key)
+  (functional-sort condition-list 
+				   (lambda (a b) (< (alist a key) (alist b key)))))
+
+(defun group-by-condition (condition-list key &optional randomize)
+  (mapcar #'cadr (foldl 
+				  (lambda (it ac)
+					(let ((val (alist it key)))
+					  (alist-cons ac val it)))
+				  ()
+				  condition-list)))
+(defun ungroup (grouped-condition-list)
+  (flatten-once grouped-condition-list))
+
+(defun add-permutations (conditions-list condition-name values)
+  (domonad monad-seq [c conditions-list
+						v values]
+		   (alist>> c condition-name v)))
+
+(defun keyword->string (kw)
+  (let ((s (format "%s" kw)))
+	(substring s 1 (length s))))
+
+(defun condition->filename (condition)
+  (||| lisp-val: (let ((keys (mapcar #'car condition)))
+				   (foldl (lambda (it ac)
+							(concatf (list ac "=%s=%0.6d")
+									 (keyword->string (car it))
+									 (cadr it)))
+						  ""
+						  condition))
+	   dup 1>length 1 swap 3>substring))
+
+(defun dsf-prep (str)
+  (let-repeatedly str 
+				  (replace-regexp-in-string (rxq ".txt") "" str)
+				  (replace-regexp-in-string "^.*/" "" str)))
+
+(defun string->kw (s) 
+  (read (concat ":" s)))
+
+(defun* dsf (str &optional (field nil) (sep (rxq "=")))
+  "dsf decomposes the filename in STR into an alist."
+  (let* ((parts (split-string (dsf-prep str) sep))
+		 (fields (mapcar #'string->kw (even-indexed-elements parts)))
+		 (vals   (mapcar #'read (odd-indexed-elements parts)))
+		 (alist (zip fields vals)))
+	(if field (alist alist field)
+	  alist)))
+
+(defun kw->string (kw)
+  (let ((s (format "%s" kw)))
+	(substring s 1 (length s))))
+
+(defun print-condition (condition &optional handlers)
+  (join (mapcar (lambda (condition)
+				  (let* ((key (car condition))
+						 (handler (alist handlers key))
+						 (val (if handler (funcall handler (cadr condition))
+								(cadr condition))))
+					(format "%s: %s"
+							(kw->string key)
+							val))) condition) ",  "))
+
+
+(defun generate-instructions (condition handler-alist final-volume volume-units)
+  (format "for %s\n \t%s and fill to %f %sL"
+		  (print-condition condition)
+		  (join (mapcar 
+				 (lambda (condition)
+				   (let* ((key (car condition))
+						  (handler (alist handler-alist key)))
+					 (funcall handler (cadr condition)))) condition) "\n\t")
+		  (funcall (alist-in *units-map* `(,volume-units :in)) final-volume)
+		  (||| {volume-units} "%s" swap 2>format dup length 1 swap substring)))
+
+(defun to-string (x) (format "%s" x))
+
+(defun dilution-volume (target-volume stock-concentration desired-concentration)
+  (/ (* target-volume desired-concentration) stock-concentration))
+
+
+
+(defun concentration-handler (substance desired-concentration stock final-volume units)
+  (let ((dv (dilution-volume final-volume stock desired-concentration)))
+	(format "Mix %f %sL of %s stock" (funcall (alist-in *units-map* `(,units :in)) dv)
+			(||| {units} "%s" swap 2>format dup length 1 swap substring) substance)))
+
+(defcurryl hpo-handler concentration-handler
+  "HPO")
+
+(defcurryl da-handler  concentration-handler
+  "Dopamine")
+
+(defcurryr default-da-handler  da-handler  (from-milli 1)    (from-milli 50) :micro)
+(defcurryr default-hpo-handler hpo-handler (from-milli 1000) (from-milli 50) :micro)
+
+(defdecorated default-hpo-handler-micro default-hpo-handler 
+  (lambda (arglist)
+	(cons (from-micro (car arglist))
+		  (cdr arglist))))
+
+(defdecorated default-da-handler-nano default-da-handler 
+  (lambda (arglist)
+	(cons (from-nano (car arglist))
+		  (cdr arglist))))
+
+(defun default-ph (x)
+  (format "pH of added buffer should be %f" (from-centi x)))
+
+(setq default-handler-alist 
+	  (alist>> 
+	   :samplePh #'default-ph
+	   :sampleDa #'default-da-handler-nano
+	   :sampleHpo #'default-hpo-handler-micro))
+
+(defun generate-ph-hpo-da-experiment-files (condition-args n-trials)
+  (let ((conditions (||| {condition-args} '(6>generate-conditions) 
+						 compose call 
+						 :samplePh 2>group-by-condition
+						 '( 1>permute-list ) map 1>ungroup))
+		(trials (range n-trials)))
+	(let ((instructions (find-file "instructions.md"))
+		  (log          (find-file "log.org")))
+	  (with-current-buffer log
+		(kill-region (point-min) (point-max))
+		(insertf "| n | filename | trial | bufferPh | samplePh | sampleDa | sampleHpo |\n"))
+	  (with-current-buffer instructions
+		(kill-region (point-min) (point-max)))
+	  (loop for c in conditions and i from 1 do
+			(loop for trial in (add-permutations (list c) :trial trials) do
+				  (with-current-buffer log
+					(insertf "| | %s | %d  |7.40 | %f | %f | %f |\n"
+							 (condition->filename trial)
+							 (alist trial :trial)
+							 (alist trial :samplePh)
+							 (alist trial :sampleDa)
+							 (alist trial :sampleHpo))))
+			(with-current-buffer instructions 
+			  (insertf "%d.\t %s\n" i
+					   (generate-instructions c default-handler-alist (from-milli 50) :milli)))))))
+
+
+(provide 'chemistry)

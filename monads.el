@@ -16,6 +16,16 @@
   (if (eq (car x) 'None) (error "This should not happen, you tried to get the value of None")
 	(cadr x)))
 
+(defun Possibilities (&rest args)
+  (cons 'Possibilities args))
+
+(setf monad-possibilities 
+	  (tbl! 
+	   :m-return (lambda (x) (Possibilities x))
+	   :m-bind (lambda (v f)
+				 (apply #'concat (loop for possibility in (cdr v) 
+									   collect (cdr (f v)))))))
+					   
 (setf monad-maybe
 	  (tbl!
 	   :m-return (lambda (x) (Just x))
@@ -34,9 +44,50 @@
 				   (fn [s] 
 					   (dlet [[val new-state] (funcall mv s)]
 						 (funcall (funcall f val) new-state))))))
+
+(setf monad-cont 
+	  (tbl! 
+	   :m-return (fn [v]
+					 (fn [c]
+						 (funcall c v)))
+	   :m-bind 
+	   (fn [mv mf]
+		   (fn [c]
+			   (funcall mv (fn [v]
+							   (funcall (mf v) c)))))))
+
+(defn fetch-state []
+  (fn [state]
+	  (list state state)))
+
+(defn set-state [val]
+  (fn [state]
+	  (list val val)))
+
+(defn fetch-state-alist [key]
+  (fn [state]
+	  (list (alist state key) state)))
+
+(defn set-state-alist [key val]
+  (fn [state]
+	  (list val (alist>> state key val))))
+
+(defmacro* defstatefun (name monad-forms &body body)
+  (let ((state (gensym "state")))
+	`(defun ,name (,state)
+	   (funcall
+		(domonad monad-state ,monad-forms ,@body)
+		,state))))
+
+
 (setf monad-seq 
 	  (tbl! :m-return (lambda (x) (list x))
 			:m-bind (lambda (v f) (apply #'append (mapcar f v)))))
+
+(defun monad-set (predicate)
+  (lexical-let ((lpred predicate))
+	(tbl! :m-return (lambda (x) (list x))
+		  :m-bind (lambda (v f) (unique (apply #'append (mapcar f v)) lpred)))))
 
 (defn m-m-bind [monad v f]
   (funcall (tbl monad :m-bind) v f))
@@ -45,13 +96,37 @@
   (funcall (tbl monad :m-return) v))
 
 
+
 (defmacro* with-monad (monad &body body)
   `(labels ((m-return (x) (m-m-return ,monad x))
 			(m-bind (v f) (m-m-bind ,monad v f))
 			(>>= (v f) (m-m-bind ,monad v f)))
 	 ,@body))
+(defmacro* with-monad-dyn (monad &body body)
+  `(flet ((m-return (x) (m-m-return ,monad x))
+		  (m-bind (v f) (m-m-bind ,monad v f))
+		  (>>= (v f) (m-m-bind ,monad v f)))
+	 ,@body))
 
+(defn halt [x]
+  (fn [c] x))
 
+(defn yield [x]
+  (fn [c]
+	  (list x (fn []
+		  (funcall c x)))))
+
+(defn bounce [x]
+  (fn [c]
+	  (fn []
+		  (funcall c x))))
+
+(defn m-chain [steps]
+  (foldl 
+   (fn [step chain-expr]
+	   (fn [v] (m-bind (funcall chain-expr v) step)))
+   #'m-return
+   steps))
 
 (dont-do 
  (with-monad monad-seq

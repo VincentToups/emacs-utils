@@ -50,8 +50,9 @@
   (if (or (eq (car form) 'progn) 
 		  (eq (car form) 'prog1))
 	  (collect-usage-info-prog-like (cdr form) global-info local-info)
-	(foldl (la (sub-form glob-inf)
-			   (collect-usage-info sub-form glob-inf local-info))
+	(foldl (lexical-let ((li local-info))
+			 (la (sub-form glob-inf)
+				 (collect-usage-info sub-form glob-inf li)))
 		   global-info
 		   form)))
 
@@ -71,16 +72,17 @@
 (defun collect-usage-info-function (form global-info local-info)
   (let* ((symbol-name (cadr form)))
 	(if (symbolp symbol-name)
-		(let* ((binding-info (symbol-binding-info symbol-name local-info))
-			   (f-bound (cadr binding-info)))
-		  (let-seq (s-count f-count su-count fu-count) (symbol-bind-counts symbol-name global-info)
-				   (alist>> global-info symbol-name 
-							(list s-count 
-								  (if f-bound (+ 1 f-count) f-count)
-								  su-count
-								  (if (not f-bound) 
-									  (+ 1 fu-count)
-									fu-count)))))
+		(progn 
+		  (let* ((binding-info (symbol-binding-info symbol-name local-info))
+				 (f-bound (cadr binding-info)))
+			(let-seq (s-count f-count su-count fu-count) (symbol-bind-counts symbol-name global-info)
+					 (alist>> global-info symbol-name 
+							  (list s-count 
+									(if f-bound (+ 1 f-count) f-count)
+									su-count
+									(if (not f-bound) 
+										(+ 1 fu-count)
+									  fu-count))))))
 	  (collect-usage-info-lambda form global-info local-info))))
 
 
@@ -169,6 +171,9 @@ LOCAL-INFO is recursively defined, but is of the form
 
   Where bound-as-(function/symbol) are either t or nil."
   (cond
+   ((numberp form) global-info)
+   ((stringp form) global-info)
+   ((vectorp form) global-info)
    ((symbolp form)
 	(cond ((eq 't form) global-info)
 		  ((eq 'nil form) global-info)
@@ -203,7 +208,7 @@ LOCAL-INFO is recursively defined, but is of the form
 	 ((setqp form)
 	  (collect-usage-info-setq form global-info local-info))
 	 (t ; function application
-	  (collect-usage-info-prog-like (cdr form)
+	  (collect-usage-info-prog-like `(progn ,@(cdr form))
 									(collect-usage-info-function `(function ,(car form)) global-info local-info)
 									local-info))))))
 
@@ -248,7 +253,7 @@ LOCAL-INFO is recursively defined, but is of the form
   (print x)
   x)
 
-(defmacro* lexical-lambda (args &body body)
+(defmacro* capturing-lambda (args &body body)
   (let* ((expanded (cadr (macroexpand-all `(lambda ,args ,@body))))
 		 (info (collect-usage-info expanded))
 		 (unbound-symbols (get-unbound-symbols-list info))
@@ -267,7 +272,7 @@ LOCAL-INFO is recursively defined, but is of the form
 		   ,expanded)))))
 
 
-(defmacro* lexical-defun (name args docstring &body body)
+(defmacro* capturing-defun (name args docstring &body body)
   (let* ((expanded (macroexpand-all `(defun ,name ,args ,docstring ,@body)))
 		 (info (collect-usage-info expanded))
 		 (unbound-symbols (get-unbound-symbols-list info))
@@ -285,5 +290,22 @@ LOCAL-INFO is recursively defined, but is of the form
 						  `(,f (&rest ,arglist) (apply #',old-f ,arglist))))
 		   ,expanded)))))
 
+
+
+
+(defun /|-argpred (x)
+  (and (symbolp x)
+	   (let* ((strv (format "%s" x))
+			  (first-char (substring strv 0 1))
+			  (rest-chars (substring strv 1 (length strv)))
+			  (rest-count (string-to-number rest-chars)))
+		 (and (string= "%" first-char)
+			  (> rest-count 0)))))
+
+(defmacro* /| (&body body)
+  (let* ((expanded (macroexpand-all `(progn ,@body)))
+		 (usage-info (collect-usage-info expanded))
+		 (args (filter #'/|-argpred (get-unbound-symbols-list usage-info))))
+	`(function (lambda ,args ,expanded))))
 
 
