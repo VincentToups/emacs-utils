@@ -67,7 +67,7 @@ supported as parsing streams, but I want to be able to add parsing buffers
 cheaply in the future.  As a consequence, I've wrapped a string up in
 an eieio class `<parser-input-string>` with methods `input-empty?`,
 `input-empty-p` (synonyms), `input-rest`, and `input-first`.  Because
-eieio does'nt cover the whole emacs class universe, you've got to wrap
+eieio doesn't cover the whole emacs class universe, you've got to wrap
 a string before using it via `string->parser-input.`
 
 Reading about [Smug](http://common-lisp.net/~dcrampsie/smug.html) is
