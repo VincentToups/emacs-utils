@@ -229,6 +229,9 @@ Update 10 Oct 2010
 write them, `capturing-defun` and `capturing-lambda` which attempt to
 meaningfully capture their apparent lexical scope (don't really work)
 * added lex-lambda and lex-defun which automatically create lexical
-scopes around their bodies containing their args.
+scopes around their bodies, containing their args.
 * implemented monadic parser combinators using the monads in monads.el
 * added lots more stack language functions.
+* added a units library for dealing with SI units sort of smartly,
+integrates with with-stack, because unit calculations look nice there.
+* partial support for an interface to [animator](http://repo.hu/projects/animator/) in `animator.el`.

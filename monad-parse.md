@@ -17,7 +17,13 @@ have to do it explicitely.
 Things are basically just like Drew Crampsie's library except that
 I've used my `domonad` form to support his `=let*` form, and as a
 consequence the binding forms in that expression follow the clojure
-style, rather than the Common Lisp/Emacs Lisp style.  
+style, rather than the Common Lisp/Emacs Lisp style.  This means that
+his `results` are my `returns,` and for simplicity I provide
+`parser-bind` and `parser-result` global function bindings.  Lots of
+the functions in Smug have a `parser-` prefix because Emacs Lisp lacks
+a good namespace mechanism.  `=let*`, in a giant gotcha, automatically
+applies `parser-return` to its `body`, so you don't need to indicate
+`return` when using it.  Besides that, its very similar.
 
 For instance, using Smug, `zero-or-more` looks like:
 
@@ -38,8 +44,8 @@ be:
         (=let* 
          [x parser
           xs (zero-or-more parser)]
-         (result (cons x xs))) 
-        (result nil)))
+         (cons x xs))
+        (parser-return nil)))
 
 `=let*` is literally implemented as:
 
