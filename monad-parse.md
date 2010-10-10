@@ -39,7 +39,7 @@ In this library, which lacks a snappy name because it is too
 frankensteinish and slow to be really usable (probably), this would
 be:
 
-    (defun zero-or-more (parser) 
+    (lex-defun zero-or-more (parser) 
       (=or 
         (=let* 
          [x parser
@@ -47,15 +47,17 @@ be:
          (cons x xs))
         (parser-return nil)))
 
-`=let*` is literally implemented as:
+The differences are: Because `=let*` is producing a function, you need
+a lexical closure over `parser`, so I use my `lex-defun` form to
+create it.  The binding forms in `=let*` use `[]` and no internal
+delimiters, and the body of `=let*` doesn't require a `parser-return` function.
+
+`=let*` is (for reference) literally implemented as:
 
     (defmacro* =let* (bindings &body body)
      `(domonad monad-parse ,bindings ,@body))
 
-One important proviso is that my version of `=let*` implicitely wraps
-the `body` in a `parser-return` function.  Bear this in mind when
-comparing his code and mine.  I may provide a Smug compliant version
-of `=let*` eventually.  
+I may provide a Smug compliant version of `=let*` eventually.
 
 One other major difference is that you've got to jump through a hoop
 to support generic input types.  I've used
