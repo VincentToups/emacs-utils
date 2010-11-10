@@ -3,6 +3,7 @@
 (require 'defn)
 (require 'monads)
 (require 'functional)
+(require 'units)
 
 (defun element-name (element)
   (||| 'name {element} 2>assoc 1>cdr))
@@ -233,9 +234,9 @@
 	   :sampleDa #'default-da-handler-nano
 	   :sampleHpo #'default-hpo-handler-micro))
 
-(defun generate-ph-hpo-da-experiment-files (condition-args n-trials)
-  (let ((conditions (||| {condition-args} '(6>generate-conditions) 
-						 compose call 
+(defun* generate-ph-hpo-da-experiment-files (condition-args n-trials &optional (mixing-volume (from-milli 50)))
+  (let* ((raw-conditions (generate-conditions condition-args))
+		 (conditions (||| {raw-conditions} 
 						 :samplePh 2>group-by-condition
 						 '( 1>permute-list ) map 1>ungroup))
 		(trials (range n-trials)))
@@ -257,7 +258,18 @@
 							 (alist trial :sampleHpo))))
 			(with-current-buffer instructions 
 			  (insertf "%d.\t %s\n" i
-					   (generate-instructions c default-handler-alist (from-milli 50) :milli)))))))
+					   (generate-instructions c default-handler-alist mixing-volume :milli)))))))
 
+(defun next-name-cp ()
+  (interactive)
+  (forward-line 1)
+  (beginning-of-line)
+  (forward-char 7)
+  (let ((pt (point))
+	    (pt2 (progn (forward-char (length "trial=000001=sampleHpo=000000=sampleDa=001000=samplePh=000744"))
+					(point))))
+	(clipboard-kill-ring-save pt pt2))
+  (beginning-of-line)
+  (forward-char 1) (overwrite-mode t) (insert "_") (overwrite-mode nil) (org-cycle))
 
 (provide 'chemistry)

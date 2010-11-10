@@ -312,6 +312,11 @@
 (defun gen-fn-rec-binding (binders args-sym)
   (vector (coerce binders 'vector) args-sym))
 
+(defmacro* fnc (&rest rest)
+  `(byte-compile (fn ,@rest)))
+(defmacro* fnc_ (&rest rest)
+  `(byte-compile (fn_ ,@rest)))
+
 (defmacro* fn (&rest rest)
   "Clojure-style destructuring lambda (funcall (fn [[x y & r]] (list x y r)) '(1 2 3 4 5 6)) -> (1 2 (3 4 5 6))."
   (cond
@@ -417,6 +422,11 @@
 		finally 
 		(return (list (reverse interactives) (reverse outforms)))))
 
+(defmacro defunc (&rest rest)
+  (let ((retsym (gensym "defunc-val")))
+	`(let ((,retsym (defun ,@rest)))
+	   (byte-compile ',(car rest))
+	   ,retsym)))
 
 (defmacro* defn (name &rest rest)
   "Clojure-style function definition.  Supports recur and destructuring bind."
@@ -427,7 +437,7 @@
 				 (args (gensym (format "%s-args-" name))))
 			 `(let ((currently-defining-defn ',name))
 				(lexical-let ((,undername (fn ,@clean-rest)))
-				  (defun ,name (&rest ,args) ,(car interactives)
+				  (defunc ,name (&rest ,args) ,(car interactives)
 					(apply ,undername ,args)))))))
 
 (defmacro* defn_ (name &rest rest)
@@ -439,7 +449,7 @@
 				 (args (gensym (format "%s-args-" name))))
 			 `(let ((currently-defining-defn ',name))
 				(lexical-let ((,undername (fn_ ,@clean-rest)))
-				  (defun ,name (&rest ,args) ,(car interactives)
+				  (defunc ,name (&rest ,args) ,(car interactives)
 					(apply ,undername ,args)))))))
 
 										;(defn defn-test [] (+ 1 1))

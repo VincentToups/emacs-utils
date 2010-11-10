@@ -1,4 +1,5 @@
 (require 'utils)
+(require 'cl)
 (progn
   (defun non-empty-listp (o)
 	(and (listp o)

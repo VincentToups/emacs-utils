@@ -1,11 +1,13 @@
 (require 'utils)
 (require 'macro-utils)
+(require 'cl)
 
 (defun stack-atomp (item)
   (or (numberp item)
 	  (stringp item)
 	  (vectorp item)
 	  (quotep item)))
+
 (defun handle-stack-atom (item)
   (cond ((quotep item) `(push ,item *stack*))
 		(t `(push ,item *stack*))))
@@ -25,13 +27,16 @@
   (let ((actual-name (internf "stack-%s-" name)))
 	`(progn 
 	   (defun ,actual-name () ,@body)
-	   (tbl! *stack-words* ',name (list ',actual-name nil)))))
+	   (tbl! *stack-words* ',name (list ',actual-name nil))
+	   (byte-compile ',actual-name))))
 
 (defmacro* defstackword-immediate (name &body body)
   (let ((actual-name (internf "stack-%s-" name)))
 	`(progn 
 	   (defun ,actual-name () ,@body)
-	   (tbl! *stack-words* ',name (list ',actual-name t)))))
+	   (tbl! *stack-words* ',name (list ',actual-name t)) 
+	   (byte-compile ',actual-name)
+	   )))
 
 (defun stackword-immediatep (word)
   (cadr (tbl *stack-words* word)))
@@ -149,7 +154,7 @@
 
 (defmacro bivalent-stack-words (&rest ss)
   `(progn ,@(loop for s in ss collect 
-				 `(bivalent-stack-word ,s))))
+				  `(bivalent-stack-word ,s))))
 
 (defmacro univalent-stack-word (s)
   `(defstackword ,s 
@@ -157,7 +162,7 @@
 
 (defmacro univalent-stack-words (&rest ss)
   `(progn ,@(loop for s in ss collect 
-				 `(univalent-stack-word ,s))))
+				  `(univalent-stack-word ,s))))
 
 (defmacro n-valent-stack-word (n s)
   `(defstackword ,s 
@@ -232,7 +237,7 @@
 (defstackword dupd 
   (let ((top (pop *stack*)))
 	(push (car *stack*) *stack*)
-	(push top)))
+	(push top *stack*)))
 (defstackword over 
   (push (elt *stack* 1) *stack*))
 (defstackword pick
@@ -368,16 +373,9 @@
 							(pop-stack)
 						  (if (= 0 (length *stack*)) (error (format "stack: Couldn't find the end of the stack-word: %s" name)))))))
 	(pop-stack)
-	(eval `(defstackword ,name (|||- ,@body)))))
-
-(||| word: head&tail '(1>car) '(1>cdr) bi end:)
-(||| word: tail&head head&tail swap end:)
-(||| word: map-get-next-item rot tail&head '(-rot) dip end:)
-(||| word: map ;( seq qtn -- newseq )
-	 nil
-	 '(map-get-next-item pick call swap 2>cons pick 1>length 0 2>= 1>not) loop
-	 '(2drop) dip 1>reverse
-	 end:)
+	(eval `(defstackword ,name (|||- ,@body)))
+	(eval `(byte-compile ',(internf "stack-%s-" name)))
+	))
 
 (defmacro assert-stack-predicates (predicates word-name)
   `(progn 
@@ -408,8 +406,7 @@
 		  (push-stack qtn)
 		  (|||- call))))
 
-(||| word: foldl ;( list init qtn -- result )
-	 swapd leach end:)
+
 
 (defstackword-immediate lisp-val: 
   (assert (stack-at-least 1) "stack: lisp-val: needs one word after it, at least.")
@@ -454,7 +451,6 @@
 ;; 				 (push-stack item)
 ;; 				 (loop for i from 1 to n-new do
 ;; 					   (push-stack (pop holder))))))))
-
 
 (defstackword filter ;( lst quot -- lst )
   (assert (stack-at-least 2) "stack: filter requires 2 items on the stack.")

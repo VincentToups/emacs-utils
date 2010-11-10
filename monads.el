@@ -12,6 +12,8 @@
 (defn Just [x] 
   (list 'Just x))
 (defn None [] (list 'None))
+(defun None? (o)
+  (and (listp o) (eq (car o) 'None)))
 (defn MaybeVal [x]
   (if (eq (car x) 'None) (error "This should not happen, you tried to get the value of None")
 	(cadr x)))
@@ -25,7 +27,7 @@
 	   :m-bind (lambda (v f)
 				 (apply #'concat (loop for possibility in (cdr v) 
 									   collect (cdr (f v)))))))
-					   
+
 (setf monad-maybe
 	  (tbl!
 	   :m-return (lambda (x) (Just x))

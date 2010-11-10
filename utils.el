@@ -101,11 +101,11 @@
 
 (defun* unique (lst &optional (pred #'eq))
   (reverse (foldl
-   (lambda (it ac)
-	 (if (in it ac pred) ac
-	   (cons it ac)))
-   '()
-   lst)))
+			(lambda (it ac)
+			  (if (in it ac pred) ac
+				(cons it ac)))
+			'()
+			lst)))
 
 (defun insertf (&rest args)
   (insert (apply #'format  args)))
@@ -729,7 +729,7 @@
   (sort (copy-sequence list) pred))
 
 (defun wd ()
-  (replace-regexp-in-string "Directory " "" (pwd)))
+  (car (sh "pwd")))
 
 (defun files-wd (&rest rest)
   (apply #'directory-files (cons (wd) rest)))
@@ -1018,7 +1018,22 @@
 	  `(defun ,name ,arglist 
 		 (lexical-let ,lex-forms ,doc ,@body)))))
 
+(defmacro ix: (lst indexes) 
+  (let ((lst-sym (gensym "ix-lst")))
+	`(let* ((,lst-sym ,lst)
+			(end (- (length ,lst-sym) 1))
+			(end+ (length ,lst-sym)))
+	   (elts ,lst-sym ,indexes))))
 
+(defun shf (command-string &rest args)
+  (sh (apply #'format command-string args)))
 
+(defun printf (&rest args)
+  (print (apply #'format args)))
+
+(defun buffer-next-word ()
+  (let ((s (point))
+		(q (forward-word 1)))
+	(chomp (buffer-substring s (point)))))
 
 (provide 'utils)
