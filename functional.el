@@ -1,3 +1,36 @@
+(require 'codewalking-utils)
+(require 'utils)
+
+(defmacro defcompose (name &rest fs)
+  (let ((args (gensym (format "%s-args" name))))
+	`(defun ,name (&rest ,args)
+	   (apply (comp ,@fs) ,args))))
+
+(defun /|-argpred (x)
+  (and (symbolp x)
+	   (let* ((strv (format "%s" x))
+			  (first-char (substring strv 0 1))
+			  (rest-chars (substring strv 1 (length strv)))
+			  (rest-count (string-to-number rest-chars)))
+		 (and (string= "%" first-char)
+			  (> rest-count 0)))))
+
+(defun arg-num (arg)
+  (let* ((strv (format "%s" arg))
+		 (first-char (substring strv 0 1))
+		 (rest-chars (substring strv 1 (length strv)))
+		 (rest-count (string-to-number rest-chars)))
+	rest-count))
+
+(defun arg< (arg1 arg2)
+  (< (arg-num arg1) (arg-num arg2)))
+
+(defmacro* /| (&body body)
+  (let* ((expanded (macroexpand-all `(progn ,@body)))
+		 (usage-info (collect-usage-info expanded))
+		 (args (filter #'/|-argpred (get-unbound-symbols-list usage-info)))
+		 (args (functional-sort args #'arg<)))
+	`(function (lambda ,args ,expanded))))
 
 (defmacro defcurryl (newname oldname &rest args)
   (let ((narglist (gensym (format "%s-arglist" newname))))
@@ -12,12 +45,20 @@
 (defmacro clambdal (oldf &rest args)
   (let ((narglist (gensym "clambdal-arglist-")))
 	`(lambda (&rest ,narglist)
-	   (apply #',oldf ,@args ,narglist))))
+	   (apply ,oldf ,@args ,narglist))))
+
+(defmacro cl (&rest stuff)
+  `(clambdal ,@stuff))
+
 
 (defmacro clambdar (oldf &rest args)
   (let ((narglist (gensym "clambdal-arglist-")))
 	`(lambda (&rest ,narglist)
-	   (apply #',oldf (apply ,narglist (list ,@args))))))
+	   (apply ,oldf (append ,narglist (list ,@args))))))
+
+(defmacro cr (&rest stuff)
+  `(clambdar ,@stuff))
+
 
 (defmacro defdecorated (newname oldname transformer)
   (let ((args (gensym (format "%s-decorated-args" newname))))
@@ -30,5 +71,37 @@
 	`(lambda (&rest ,args)
 	   (apply #',oldf
 			  (funcall #',transformer ,args)))))
+
+(lex-defun f-and-2 (f1 f2)
+		   (lambda (&rest args) 
+			 (and (apply f1 args)
+				  (apply f2 args))))
+
+(lex-defun f-and (&rest fs)
+		   (reduce #'f-and-2 fs))
+
+(lex-defun f-or-2 (f1 f2)
+		   (lambda (&rest args)
+			 (or (apply f1 args)
+				 (apply f2 args))))
+
+(lex-defun f-or (&rest fs)
+		   (reduce #'f-or-2 fs))
+
+(lex-defun f-not (f)
+		   (lambda (&rest args)
+			 (not (apply f args))))
+
+(lex-defun f-mapcar (f)
+		   (lambda (&rest args)
+			 (apply #'mapcar (cons f args))))
+
+(lex-defun decorate-n (f index trans)
+		   (lambda (&rest args)
+			 (let* ((el (elt args index))
+					(new (funcall trans el)))
+			   (setf (elt args index) new)
+			   (apply f args))))
+
 
 (provide 'functional)

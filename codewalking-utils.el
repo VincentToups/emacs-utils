@@ -293,20 +293,5 @@ LOCAL-INFO is recursively defined, but is of the form
 
 
 
-(defun /|-argpred (x)
-  (and (symbolp x)
-	   (let* ((strv (format "%s" x))
-			  (first-char (substring strv 0 1))
-			  (rest-chars (substring strv 1 (length strv)))
-			  (rest-count (string-to-number rest-chars)))
-		 (and (string= "%" first-char)
-			  (> rest-count 0)))))
-
-(defmacro* /| (&body body)
-  (let* ((expanded (macroexpand-all `(progn ,@body)))
-		 (usage-info (collect-usage-info expanded))
-		 (args (filter #'/|-argpred (get-unbound-symbols-list usage-info))))
-	`(function (lambda ,args ,expanded))))
-
 
 (provide 'codewalking-utils)

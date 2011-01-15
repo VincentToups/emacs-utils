@@ -1,4 +1,5 @@
 (require 'with-stack)
+(require 'stack-words)
 (require 'eperiodic)
 (require 'defn)
 (require 'monads)
@@ -168,6 +169,31 @@
 	(if field (alist alist field)
 	  alist)))
 
+(defun* dsf-raw (str &optional (field nil) (sep (rxq "=")))
+  "dsf decomposes the filename in STR into an alist."
+  (let* ((parts (split-string (dsf-prep str) sep))
+		 (fields (mapcar #'string->kw (even-indexed-elements parts)))
+		 (vals   (odd-indexed-elements parts))
+		 (alist (zip fields vals)))
+	(if field (alist alist field)
+	  alist)))
+
+
+
+(defun* undsf (alist &optional (order (alist-fields alist)) (delim "="))
+  (join (foldl
+		 (lambda (pair flat)
+				(append flat (list (kw->string (car pair)) (to-string (cadr pair)))))
+		 nil
+		 alist) delim))
+
+(defun* undsf-camel (alist &optional (order (alist-fields alist)) (delim "="))
+  (join (foldl
+		 (lambda (pair flat)
+				(append flat (list (camel-case (kw->string (car pair))) (to-string (cadr pair)))))
+		 nil
+		 alist) delim))
+
 (defun kw->string (kw)
   (let ((s (format "%s" kw)))
 	(substring s 1 (length s))))
@@ -235,6 +261,7 @@
 	   :sampleHpo #'default-hpo-handler-micro))
 
 (defun* generate-ph-hpo-da-experiment-files (condition-args n-trials &optional (mixing-volume (from-milli 50)))
+  (print "WARNING Volumes other than 50 mil don't work correctly.")
   (let* ((raw-conditions (generate-conditions condition-args))
 		 (conditions (||| {raw-conditions} 
 						 :samplePh 2>group-by-condition
@@ -260,16 +287,26 @@
 			  (insertf "%d.\t %s\n" i
 					   (generate-instructions c default-handler-alist mixing-volume :milli)))))))
 
+
+(defun clipboard-kill-ring-save-string (str)
+  (with-temp-buffer 
+	(insert str)
+	(clipboard-kill-ring-save (point-min)
+							  (point-max))))
+
+(defun forward-cell ()
+  (search-forward-regexp (rxq "|")))
+
 (defun next-name-cp ()
   (interactive)
   (forward-line 1)
-  (beginning-of-line)
-  (forward-char 7)
-  (let ((pt (point))
-	    (pt2 (progn (forward-char (length "trial=000001=sampleHpo=000000=sampleDa=001000=samplePh=000744"))
-					(point))))
-	(clipboard-kill-ring-save pt pt2))
-  (beginning-of-line)
-  (forward-char 1) (overwrite-mode t) (insert "_") (overwrite-mode nil) (org-cycle))
+  (let* ((line-str (buffer-subline-no-properties))
+		 (parts (filter (f-not #'empty?) (split-string line-str "|")))
+		 (filename (elt parts 1)))
+	(clipboard-kill-ring-save-string (chomp filename))
+	(beginning-of-line)
+	(forward-cell)
+	(insert "_")
+	(org-cycle)))
 
 (provide 'chemistry)

@@ -34,6 +34,40 @@
 				 (string-of input)
 				 :index (+ 1 (index-of input))))
 
+(defclass <parser-input-buffer> () 
+  ((buffer :accessor buffer-of :initarg :buffer)
+   (ix   :accessor index-of  :initarg :index :initform 1)))
+
+(defmethod input-empty-p ((input <parser-input-buffer>))
+  (with-current-buffer (buffer-of input)
+	(if (= (index-of input) (point-max)) t nil)))
+
+(defmethod input-empty? ((input <parser-input-buffer>))
+  (with-current-buffer (buffer-of input)
+	(if (= (index-of input) (point-max)) t nil)))
+
+(defmethod input-first ((input <parser-input-buffer>))
+  (with-current-buffer 
+	  (buffer-of input)
+	(let ((ix (index-of input)))
+	  (elt (buffer-substring ix (+ 1 ix)) 0))))
+
+(defmethod input-rest ((input <parser-input-buffer>))
+  (make-instance '<parser-input-buffer>
+				 :buffer (buffer-of input)
+				 :index (+ (index-of input) 1)))
+
+(defmethod input-as-string ((input <parser-input-buffer>))
+  (with-current-buffer/save-excursion 
+   (buffer-of input)
+   (buffer-substring (index-of input) (- (point-max) 1))))
+
+(defun buffer->parser-input (buffer-or-name)
+  (make-instance '<parser-input-buffer>
+				 :buffer (get-buffer buffer-or-name)
+				 :index 1))
+
+
 (defun empty-string-parser ()
   (make-instance '<parser-input-string>
 				 :string "" :index 0))
@@ -68,6 +102,15 @@
   (defun digit-char? (x)
 	(in x digits)))
 
+(defun ->in (x)
+  (cond 
+   ((bufferp (get-buffer x))
+	(buffer->parser-input x))
+   ((stringp x)
+	(string->parser-input x))
+   (t (error "Can't convert %s into a parser input." x))))
+
+
 (lexical-let ((lowers (coerce "abcdefghijklmnopqrztuvwxyz" 'list))
 			  (uppers (coerce "ABCDEFGHIJKLMNOPQRZTUVWXYZ" 'list)))
   (defun upper-case-char? (x)
@@ -86,15 +129,29 @@
 (defun =digit-char ()
   (=satisfies #'digit-char?))
 
-(defun parser-plus (p1 p2)
+(defun parser-plus-2 (p1 p2)
   (lexical-let ((p1 p1)
 				(p2 p2))
 	(lambda (input) 
 	  (append (funcall p1 input) (funcall p2 input)))))
 
+(defun parser-plus (&rest args)
+  (reduce #'parser-plus-2 args))
+
 (defun letter () (parser-plus (=lower-case-char?) (=upper-case-char?)))
 
 (defun alphanumeric () (parser-plus (=digit-char) (letter)))
+
+(defun =char->string (char)
+  (=let* [_ (=char char)]
+		 (coerce (list _) 'string)))
+
+
+(lex-defun =string (str)
+		   (if (string= str "") (parser-return "")
+			 (=let* [_ (=char->string (elt str 0))
+					   rest (=string (substring str 1 (length str)))]
+					(concat _ rest))))
 
 (defun =string (input)
   (lexical-let ((input input))
@@ -141,6 +198,12 @@
 						  xs (zero-or-more parser)]
 					   (cons x xs))
 				(parser-return nil)))
+
+(lex-defun zero-or-one (parser)
+		   (=or (=let* [_ parser]
+					   _)
+				(parser-return nil)))
+
 
 
 (lex-defun one-or-more (parser)
