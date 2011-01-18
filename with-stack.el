@@ -3,27 +3,33 @@
 (require 'cl)
 
 (defun stack-atomp (item)
+  "Detects whether an item is a stack atom."
   (or (numberp item)
 	  (stringp item)
 	  (vectorp item)
 	  (quotep item)))
 
 (defun handle-stack-atom (item)
+  "Generates code for a stack atom."
   (cond ((quotep item) `(push ,item *stack*))
 		(t `(push ,item *stack*))))
 
-(setf *stack-words* (tbl!))
+(defvar *stack-words* (tbl!) "Dictionary of stack words.")
 
 (defun push-stack (x)
+  "Pushes an item on the dynamically scoped stack."
   (push x *stack*))
 (defun pop-stack ()
+  "Pops an item off the dynamically scoped stack."
   (pop *stack*))
 
 (defun stack-wordp (item)
+  "Returns true if item is a symbol representing a stack word."
   (and (symbolp item)
 	   ($ item in *stack-words*)))
 
 (defmacro* defstackword (name &body body)
+  "Define a new stack word and insert it into the stack word dictionary."
   (let ((actual-name (internf "stack-%s-" name)))
 	`(progn 
 	   (defun ,actual-name () ,@body)
@@ -31,6 +37,7 @@
 	   (byte-compile ',actual-name))))
 
 (defmacro* defstackword-immediate (name &body body)
+  "Define a new stack word and insert it into the stack word dictionary, and mark it as immediate."
   (let ((actual-name (internf "stack-%s-" name)))
 	`(progn 
 	   (defun ,actual-name () ,@body)
@@ -39,9 +46,11 @@
 	   )))
 
 (defun stackword-immediatep (word)
+  "Returns true when WORD is a symbol representing an immediate stackword."
   (cadr (tbl *stack-words* word)))
 
 (defun handle-immediate-stackword (item)
+  "Calls the code representing the stack word ITEM right now."
   (let ((*stack* code)
 		(*retain-stack* nil))
 	(funcall (car (tbl *stack-words* item)))
@@ -49,10 +58,12 @@
   nil)
 
 (defun handle-stack-word (item)
+  "Generates the code to call a stack word."
   (if (stackword-immediatep item) (handle-immediate-stackword item)
 	`(,(car (tbl *stack-words* item)))))
 
 (defun stack-emacs-callp (item)
+  "Detects a call-to-emacs syntax like N>function."
   (let ((s (format "%s" item)))
 	(and ($ ">" in s)
 		 (let* ((parts (split-string s ">"))
@@ -61,14 +72,17 @@
 			   (numberp (read n-stack-part)))))))
 
 (defun gen-temp-syms (n)
+  "Generate a set of temporary symbols for with-stack."
   (loop for i from 1 to n collect 
 		(gensym (format "stack-temp-%d" i))))
 
 (defun pop-n (n where)
+  "Returns the first N items from WHERE, removes them from WHERE."
   "returns a list of the first n items WHERE, which are removed"
   (loop for i from 1 to n collect (pop where)))
 
 (defun handle-emacs-call (item)
+  "Generates the code for a call to an emacs function."
   (let* ((s (format "%s" item))
 		 (parts (split-string s ">"))
 		 (n (read (car parts)))
@@ -84,20 +98,24 @@
 			  (push (,sym ,@(reverse temp-syms)) *stack*))))))
 
 (defun stack-interpolationp (item)
+  "Detects stack interpolation syntax, that is when a symbol is bracketed without spaces: {symbol}."
   (let* ((s (format "%s" item))
 		 (n (length s)))
 	(and (string= (substring s 0 1) "{")
 		 (string= (substring s (- n 1) n) "}"))))
 
 (defun stack-get-interpolation-symbol (item)
+  "Reads out the symbol value from an interpolated symbol: {x} -> x."
   (let* ((s (format "%s" item))
 		 (n (length s)))
 	(intern (substring s 1 (- n 1)))))
 
 (defun handle-stack-interpolation (item)
+  "Generates the code to handle with-stack symbol interpolation."
   `(push ,(stack-get-interpolation-symbol item) *stack*))
 
 (defun handle-stack-symbol (item)
+  "Main workhorse for with-stack, dispatches handling to appropriate handler to generate code."
   (cond 
    ((or (eq item 't) (eq item t)) `(push t *stack*))
    ((keywordp item) `(push ,item *stack*))
@@ -107,6 +125,7 @@
    (t (error (format "stack: Can't figure out how to compile %s." item)))))
 
 (defmacro* with-stack- (&body code)
+  "Evaluate the code CODE with the stack language, using the dynamicly bound *stack*.  Return the top of the stack."
   `(progn
 	 ,@(filter #'identity (loop while code collect
 								(let ((item (car code)))
@@ -121,6 +140,7 @@
 	 (car *stack*)))
 
 (defmacro* with-stack (&body code)
+  "Evaluate the code CODE with a fresh, empty stack.  Return top of stack."
   `(let ((*stack* nil)
 		 (*retain-stack* nil))
 	 ,@(filter #'identity (loop while code collect
@@ -136,39 +156,50 @@
 	 (car *stack*)))
 
 (defmacro* ||| (&body body)
+  "Synonym for WITH-STACK."
   `(with-stack ,@body))
 (defmacro* |||- (&body body)
+  "Synonym for WITH-STACK-"
   `(with-stack- ,@body))
 (defmacro* |||p (&body body)
+  "Like WITH-STACK but prints the stack before returning the top of the stack."
   `(with-stack ,@body print-stack))
 
 (defun stack-at-least (n)
+  "Checks the stack depth is at least n."
   (>= (length *stack*) n))
 
 (defun retain-stack-at-least (n)
+  "Check the retain stack depth is at least n."
   (>= (length *retain-stack*) n))
 
 (defmacro bivalent-stack-word (s)
+  "Tell the stack language that the emacs function represented by S can be called as a stack word with two arguments."
   `(defstackword ,s 
 	 (|||- ,(intern (format "2>%s" s)))))
 
 (defmacro bivalent-stack-words (&rest ss)
+  "Declare that the emacs functions in SS are all two argument stack words."
   `(progn ,@(loop for s in ss collect 
 				  `(bivalent-stack-word ,s))))
 
 (defmacro univalent-stack-word (s)
+  "Tell the stack language that S is a stack word which consumes one argument."
   `(defstackword ,s 
 	 (|||- ,(intern (format "1>%s" s)))))
 
 (defmacro univalent-stack-words (&rest ss)
+  "Tell the stack language that all the emacs functions in SS are single argument stack words."
   `(progn ,@(loop for s in ss collect 
 				  `(univalent-stack-word ,s))))
 
 (defmacro n-valent-stack-word (n s)
+  "Tell the stack language that emacs function S can be called as a stack word with N arguments."
   `(defstackword ,s 
 	 (|||- ,(intern (format "%d>%s" n s)))))
 
 (defmacro n-valent-stack-words (n &rest ss)
+  "Tell the stack language that all of the emacs functions SS can be called with N arguments."
   `(progn ,@(loop for s in ss collect
 				  `(n-valent-stack-word ,n ,s))))
 
@@ -326,20 +357,23 @@
 (defstackword 2drop
   (|||- drop drop))
 
-(defun fill-in-fry (qtn)
-  (reverse (loop for item in (reverse qtn) collect
-				 (cond 
-				  ((and (symbolp item)
-						(eq item '_))
-				   (pop-stack))
-				  ((listp item)
-				   (mapcar #'fill-in-fry item))
-				  (t item)))))
+;; (defun fill-in-fry (qtn)
+;;   "Take a quotation and fill in the fry spaces (_ and @) with values from the stack."
+;;   (reverse (loop for item in (reverse qtn) collect
+;; 				 (cond 
+;; 				  ((and (symbolp item)
+;; 						(eq item '_))
+;; 				   (pop-stack))
+;; 				  ((listp item)
+;; 				   (mapcar #'fill-in-fry item))
+;; 				  (t item)))))
 
 (defun fill-in-fry (future)
+  "Take a quotation and fill in the fry spaces (_ and @) with values from the stack."
   (reverse (fill-in-fry-natural (reverse future) nil)))
 
 (defun fill-in-fry-natural (future past)
+  "Fill in the fry words in a more natural order, trust a higher function to reverse all sublists."
   (if (not future) past
 	(let* ((item (car future))
 		   (rest (cdr future))
@@ -378,6 +412,7 @@
 	))
 
 (defmacro assert-stack-predicates (predicates word-name)
+  "Takes a list of PREDICATES and a WORD-NAME for error message generation, and checks each item on the stack in the same order as predicates.  Generate an error on failure."
   `(progn 
 	 ,@(loop for pred in (reverse predicates)
 			 and i from 0 collect
@@ -388,6 +423,7 @@
 														  word-name))))))
 
 (defun stack-quotationp (x)
+  "Detect a stack quotation (synonymous with listp)"
   (listp x))
 
 (defstackword assert-stack-predicates 
