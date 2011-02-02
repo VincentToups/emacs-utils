@@ -58,7 +58,7 @@ allowing the full power of the emacs stack language.
 How can I learn more about this amazing invention??
 ---------------------------------------------------
 
-The emacs stack language is documented [here]() and the source code in
+The emacs stack language is documented [here](https://github.com/VincentToups/emacs-utils/blob/master/with-stack.md) and the source code in
 this repository will tell you anything else you might want to know.
 Both have in-emacs documentation for most functions/macros.  So far
 the language supports the following operands
