@@ -1609,4 +1609,21 @@
   (interactive "D")
   (shf "nautilus %s &" s))
 
+(defun unfold (pred f gen init)
+  (let ((output nil))
+	(loop while (funcall pred init) do
+		  (push (funcall f init) output)
+		  (setq init (funcall gen init)))
+	output))
+
+(defun unfold-mem (pred f gen init)
+  (let ((output nil))
+	(loop while (apply pred output) do
+		  (push (funcall f init) output)
+		  (setq init (funcall gen init)))
+	output))
+
+(defconst pi 3.14159265 "The constant pi.")
+(defconst phi 1.61803399 "The golden ratio")
+
 (provide 'utils)

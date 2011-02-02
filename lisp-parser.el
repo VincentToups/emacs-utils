@@ -1,4 +1,6 @@
 (require 'monad-parse)
+(require 'cl)
+(provide 'lisp-parser)
 
 (lexical-let 
 	((also-ok-in-ids 
@@ -17,32 +19,64 @@
 
 (defun =lisp-symbol ()
   (=let* [_ (one-or-more (=id-char))]
-		 (coerce _ 'string)))
+		 (read (coerce _ 'string))))
 
 
 (defun =numeric-sequence ()
   (=let* [_ (one-or-more (=digit-char))]
 		 (coerce _ 'string)))
 
+(defun =int ()
+  (=let* [sign (zero-or-one (=or (=char->string ?-)
+								 (=char->string ?+)))
+			   s (=numeric-sequence)]
+		 (string-to-number (concat sign s))))
+
+
 (defun =char->string (char)
   (=let* [_ (=char char)]
 		 (coerce (list _) 'string)))
 
 (defun =number ()
-  (=let* [p1 (=numeric-sequence)
-			 dot?  (zero-or-one (=char->string ?.))
-			 p2 (zero-or-one (=numeric-sequence))]
-		 (concat p1 dot? p2)))
+  (=or (=float) (=int)))
 
-(defun =escaped-quote ()
-  (=string "\\\""))
+(defun =float ()
+  (=let* [sign (zero-or-one (=or (=char->string ?+) (=char->string ?-)))
+			   p1 (zero-or-more (=digit-char))
+			   dot (=char ?.)
+			   p2 (one-or-more (=digit-char))]
+		 (string-to-number (concat sign p1 "." p2))))
 
-(funcall (=escaped-quote) (->in "testbuffer.txt"))
 
-(funcall (lisp-symbol) (->in "an"))
+(defunc =escaped-quote ()
+  (=let* [_ (=string "\\\"")]
+		 (if _ ?\" nil)))
 
-(funcall (=numeric-sequence) (->in "testbuffer.txt"))
+?\"
 
-(funcall (=char ?1) (->in "testbuffer.txt"))
+(setq space  ?\s)
 
-(input-rest (->in "testbuffer.txt"))
+(defun =spaces ()
+  (zero-or-more (=char ?\s)))
+(defun =space ()
+  (=char ?\s))
+
+(defun =lisp-atom ()
+  (=let* [_ (=spaces)
+			atom (=or (=number)
+					  (=lisp-string)
+					  (=lisp-symbol))
+			]
+		 atom))
+
+(defunc =lisp-string ()
+  (=let* [_ (=char ?\")
+			contents (zero-or-more (=or 
+									(=escaped-quote)
+									(=satisfies
+									 (lex-lambda (c) (!= c ?\")))))
+			_ (=char ?\")]
+		 (coerce (flatten contents) 'string)))
+
+
+
