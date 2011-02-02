@@ -4,6 +4,7 @@
 (require 'stack-words)
 
 (defunc =microstack-symbol ()
+  "Parser for a microstack symbol, or a space (no-op)."
   (=let* [_ (=or (letter)
 				 (=space)
 				 (=other-id-char))]
@@ -11,12 +12,15 @@
 			 (intern (concat (list _))) nil)))
 
 
-(defun microstack-parser () (zero-or-more (=or
-										   (=microstack-symbol)
-										   (=number)
-										   (=lisp-string))))
+(defun microstack-parser ()
+  "Parser for the microstack language."
+  (zero-or-more (=or
+				 (=microstack-symbol)
+				 (=number)
+				 (=lisp-string))))
 
 (defun parse-microstack (code)
+  "Parse the microstack language and return the results as a sequence of symbols, numbers, strings.  Remove no-ops."
   (filter
    (f-not (cr #'eq (intern " ")))
    (car (parse-string-det (microstack-parser) code))))
@@ -67,16 +71,20 @@
 	   't 't
 	   '_ 'nil
 	   'm '0>push-mark
+	   'M '0>mark ; put the mark position on the stack
 	   'g '1>goto-char
 	   'x 'kill-current-region
 	   '* '*
 	   '/ '/
+	   'N 'do-n-times
+	   'L 'loop
 	   's '1>search-forward
 	   'S '1>search-forward-regexp
 	   'c 'concat
 	   'i 'insert))
 
 (defun translate-microstack (code)
+  "Translate the single character symbols to their stack words.  Process special microstack behavior words."
   (loop for el in code append
 		(cond 
 		 ((symbolp el)
@@ -85,9 +93,11 @@
 		 (t (list el)))))
 
 (defun do-microstack-parsed-translated (code)
+  "Evaluate the parsed and translated CODE for a microstack statement.  Should be regular stack code at this point."
   (eval `(||| ,@code)))
 
 (defun do-microstack (str)
+  "Parse, translated and execute the microstack code in STR."
   (interactive "s")
   (let* ((code (parse-microstack str))
 		 (code (translate-microstack code)))
