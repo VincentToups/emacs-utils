@@ -10,7 +10,7 @@ series of single letter strokes and numerical (and string) arguments
 into actions in the current buffer (or computations).  
 
 On the other hand, its just a simple wrapper which lets you write a
-subset of my other tool, the emacs stack language, in a highly concise
+subset of my other tool, [the emacs stack language](https://github.com/VincentToups/emacs-utils/blob/master/with-stack.md), in a highly concise
 form meant to make text based tasks easier to perform.  
 
 It was partly inspired by my own yen for the old Vi command mode,
@@ -95,4 +95,7 @@ the language supports the following operands
 Obviously I'm going to add more operands as I use the library and determine what I wish to do.  
 Hope someone out there finds this interesting!
 
-	
+How do I get it?
+----------------
+
+Pull this repository using git, add it to your emacs path, and `(require 'microstack).  You might get some warnings as the stack language compiles (it is sort of weird).

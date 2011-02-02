@@ -2,6 +2,7 @@
 (require 'functional)
 (require 'with-stack)
 (require 'stack-words)
+(provide 'microstack)
 
 (defunc =microstack-symbol ()
   "Parser for a microstack symbol, or a space (no-op)."
