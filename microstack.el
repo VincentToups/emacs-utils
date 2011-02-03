@@ -37,7 +37,7 @@
 (defstackword insert (insert (pop *stack*)))
 (defstackword microstack->quotation
   (let ((str (pop *stack*)))
-	(push (translate-microstack (parse-microstack str)))))
+	(push (translate-microstack (parse-microstack str)) *stack*)))
 (defstackword do-n-times 
   (let ((n (pop *stack*))
 		(q (pop *stack*)))
@@ -51,7 +51,27 @@
   (|||- 1>intern 1>list))
 
 (defstackword kill-current-region 
-  (||| lisp-val: (point) lisp-val: (mark) 2>kill-region))
+  (|||- lisp-val: (point) lisp-val: (mark) 2>kill-region))
+
+(defstackword char-at-point->string
+  (push (buffer-substring-no-properties (point) (+ 1 (point))) *stack*))
+
+(defstackword loop-while
+  (let ((con (pop *stack*))
+		(qtn (pop *stack*)))
+	(loop do
+		  (|||- {con} call)
+		  while (pop *stack*)
+		  do
+		  (|||- {qtn} call))))
+(defstackword loop-until
+  (let ((con (pop *stack*))
+		(qtn (pop *stack*)))
+	(loop do
+		  (|||- {con} call)
+		  while (not (pop *stack*))
+		  do
+		  (|||- {qtn} call))))
 
 (setq micro-stack-map 
 	  (alist>> 
@@ -77,12 +97,19 @@
 	   'x 'kill-current-region
 	   '* '*
 	   '/ '/
+	   '= '2>equal
 	   'N 'do-n-times
 	   'L 'loop
 	   's '1>search-forward
 	   'S '1>search-forward-regexp
 	   'c 'concat
-	   'i 'insert))
+	   (intern ",") 'print-stack
+	   (intern ":") 'dup
+	   '@ 'char-at-point->string
+		  (intern ".") 'print
+		  'U 'loop-until
+		  'W 'loop-while
+		  'i 'insert))
 
 (defun translate-microstack (code)
   "Translate the single character symbols to their stack words.  Process special microstack behavior words."
@@ -95,7 +122,7 @@
 
 (defun do-microstack-parsed-translated (code)
   "Evaluate the parsed and translated CODE for a microstack statement.  Should be regular stack code at this point."
-  (eval `(||| ,@code)))
+  (eval `(|||p ,@code)))
 
 (defun do-microstack (str)
   "Parse, translated and execute the microstack code in STR."
