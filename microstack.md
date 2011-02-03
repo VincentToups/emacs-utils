@@ -31,7 +31,7 @@ position in the buffer, and then inserted the text "test".
 
 If you enter instead
 
-    "k"q10N
+    [k]10N
 
 You'll find emacs has deleted the last ten characters.
 
@@ -46,10 +46,36 @@ can be rewritten with extra spaces, if you want to.
 What the hell is going on here?
 -------------------------------
 
-Microstack takes a specially formatted string, parses it into a series
-of single-character "operands," numbers or strings and then passes
-that sequence through a translator which transforms symbols into
-stack-language words using a dictionary.  
+Lets take a more complex example than the ones above and read it out
+piece by piece, then discuss its stack language representation.
+
+    [d][@"}"=]U
+
+This piece of code reads "delete forward until you reach a }".  How do
+I get that from the above?  `[d]` is a quotation, because it starts
+with `[` and ends with `]`.  `d` means "delete forward".  So `[d]`
+pushes a quotation which, when called, deletes one character forward.  
+
+Immediately after this quotation is another, `[@"}"=]`, which pushes
+the character under the cursor onto the stack (`@`), pushes "}", and
+then pushes the result of testing whether they are equal (`=`).
+Remember, this is just a quotation, so its just pushed onto the stack.
+Neither quote is evaluated yet.
+
+The next operand is `U`, which stands for `loop-until`, a stack word
+which executes the lower quotation until the upper quotation pushes a
+true onto the stack.  `Loop-unti` consumes the sentinal value on each
+loop.  Putting all this together, we recover "delete forward until a
+}".
+
+In general, microstack takes a specially formatted string, parses it
+into a series of single-character "operands," numbers or strings and
+then passes that sequence through a translator which transforms
+symbols into stack-language words using a dictionary.  Operands are
+single characters, strings are like Lisp strings, numbers like lisp
+numbers, and the only special syntax is `[]` for quotation.
+Everything inside a `[]` is compiled into a stack-quotation using the
+microstack compiler.
 
 The idea is to provide the most useful/common stack language words for
 text manipulation as single character operands, for brevity, while

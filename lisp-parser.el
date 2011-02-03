@@ -52,8 +52,6 @@
   (=let* [_ (=string "\\\"")]
 		 (if _ ?\" nil)))
 
-?\"
-
 (setq space  ?\s)
 
 (defun =spaces ()
