@@ -89,34 +89,49 @@ this repository will tell you anything else you might want to know.
 Both have in-emacs documentation for most functions/macros.  So far
 the language supports the following operands
 
-	'b '0>backward-char ; back one
-	'B '1>backward-char ; back n (top of stack)
-	'f '0>forward-char  
-	'F '1>forward-char
-	'd 'delete-forward0
-	'D 'delete-forward
-	'k 'delete-backward0
-	'K 'delete-backward
-	'q 'microstack->quotation ; parses a string using microstack to a stack quotation
-	'Q 'string->quotation ; treats a string as a stack word, pushes onto stack
-	'! 'call ; the stack language call function
-	'? 'if ; stack language if
-	'+ '+ ; stack language plus
-	'- '-
-	't 't
-	'_ 'nil
-	'm '0>push-mark ; make the current point the mark
+	'b 'backward ; move the point backward once
+	'B '1>backward-char ; move the point backward n times, pop n from the stack
+	'f 'forward ; move the point forward once
+	'F '1>forward-char ; move the point forward n times, pop n from the stack
+	'd 'delete-forward0 ; delete forward once
+	'D 'delete-forward ; delete forward n times, pop n from the stack
+	'k 'delete-backward0 ; delete backward once
+	'K 'delete-backward ; delete backward n times, remove n from the stack
+	'q 'microstack->quotation ; convert a STRING to a microstack compiled quotation, "..."q is eq to [...]
+	'Q 'string->quotation ;push the stack word represented by string onto the stack to be called later
+	'! 'call ; call a quotation/stack word
+	'? 'if ; if 
+	'+ '+ ; plus
+	'- '- ; -
+	't 't ; push t 
+	'_ 'nil ; push nil
+	'm '0>push-mark ; mark the current point as the mark
 	'M '0>mark ; put the mark position on the stack
-	'g '1>goto-char ; goto char on stack
-	'x 'kill-current-region ;kill the region between point and mark
-	'* '*
-	'/ '/
-	'N 'do-n-times ; do a quotation n times.  
-	'L 'loop ; stack loop function
-	's '1>search-forward ; search forward
-	'S '1>search-forward-regexp ; search forward for a string
-	'c 'concat ; concat strings
-	'i 'insert ; insert a string
+	'g '1>goto-char ; jump to a character number popped from the stack 
+	'x 'kill-current-region ; kill the current region between the point and mark
+	'* '* ; times
+	'/ '/ ; divide
+	'= '2>equal ; equals
+	'N 'do-n-times ; do a quotation n times before stopping
+	'L 'loop ; the loop word in all its general glory - execute a quotation until the top of the stack is true
+	'{ '{{ ; start a list
+	'} '}} ; end a list
+	's '1>search-forward ; search forward for the string on the stack, which is popped
+	'S '1>search-forward-regexp ; search forward for the regex on the stack, which is popped
+	'c 'concat ; concat two strings
+	(intern ",") 'print-stack ; print the stack
+	(intern ":") 'dup ; dup
+	(intern "$") 'swap ; swap the top two stack elements
+	(intern "#") 'length ; pop object off the stack and push its length
+	(intern "@") 'char-at-point->string ;push the current character onto the stack
+	(intern ".") 'print ; print the top of the stack, pop it
+	(intern "%") 'format ; lst format-string format; calls format with the string format-string and lst as rest args
+	(intern "|") 'compose ; compose two quotations
+	(intern "/") 'curry ; curry the value on the stack into the quotation below it.
+	'U 'loop-until ; qt pred loop-until ; loop qt until pred is true
+	'W 'loop-while ; qt pred loop-while ; loop qt while pred is true
+	'i 'insert ; insert the top of the stack as text into the buffer
+
 
 Obviously I'm going to add more operands as I use the library and determine what I wish to do.  
 Hope someone out there finds this interesting!

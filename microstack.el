@@ -138,9 +138,12 @@
 	   (intern "@") 'char-at-point->string ;push the current character onto the stack
 	   (intern ".") 'print ; print the top of the stack, pop it
 	   (intern "%") 'format ; lst format-string format; calls format with the string format-string and lst as rest args
+	   (intern "|") 'compose ; compose two quotations
+	   (intern "/") 'curry ; curry the value on the stack into the quotation below it.
 	   'U 'loop-until ; qt pred loop-until ; loop qt until pred is true
 	   'W 'loop-while ; qt pred loop-while ; loop qt while pred is true
 	   'i 'insert ; insert the top of the stack as text into the buffer
+
 ))
 
 
