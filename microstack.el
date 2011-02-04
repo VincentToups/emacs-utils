@@ -18,23 +18,42 @@
   (=let* [_ (=string "\\]")]
 		 (if _ ?\" nil)))
 
-(defunc =bracketed-string ()
-  (=let* [_ (=char ?\[)
+;; (defunc =bracketed-string ()
+;;   (=let* [_ (=char ?\[)
+;; 			contents (zero-or-more (=or 
+;; 									(=escaped-close-bracket)
+;; 									(=satisfies
+;; 									 (lex-lambda (c) (!= c ?\])))))
+;; 			_ (=char ?\])]
+;; 		 (parse-and-translate-microstack (coerce (flatten contents) 'string))))
+
+(defunc =single-quote-string ()
+  (=let* [_ (=char ?\')
 			contents (zero-or-more (=or 
 									(=escaped-close-bracket)
 									(=satisfies
-									 (lex-lambda (c) (!= c ?\])))))
-			_ (=char ?\])]
-		 (parse-and-translate-microstack (coerce (flatten contents) 'string))))
+									 (lex-lambda (c) (!= c ?\')))))
+			_ (=char ?\')]
+		 (coerce (flatten contents) 'string)))
 
+(defun =microstack-string ()
+  (=or (=single-quote-string)
+	   (=lisp-string)))
+
+
+(defun =microstack-quote ()
+  (=let* [_ (=char ?\[)
+			contents (microstack-parser)
+			_ (=char ?\])]
+		 (translate-microstack contents)))
 
 (defun microstack-parser ()
   "Parser for the microstack language."
   (zero-or-more (=or
 				 (=microstack-symbol)
 				 (=number)
-				 (=lisp-string)
-				 (=bracketed-string))))
+				 (=microstack-string)
+				 (=microstack-quote))))
 
 (defun parse-microstack (code)
   "Parse the microstack language and return the results as a sequence of symbols, numbers, strings.  Remove no-ops."
@@ -89,6 +108,9 @@
 		  do
 		  (|||- {qtn} call))))
 
+(defstackword loop-until-char 
+  (|||- '(char-at-point->string string=) curry loop-until))
+
 (defstackword forward 
   (forward-char))
 (defstackword backward
@@ -139,8 +161,9 @@
 	   (intern ".") 'print ; print the top of the stack, pop it
 	   (intern "%") 'format ; lst format-string format; calls format with the string format-string and lst as rest args
 	   (intern "|") 'compose ; compose two quotations
-	   (intern "/") 'curry ; curry the value on the stack into the quotation below it.
+	   (intern "^") 'curry ; curry the value on the stack into the quotation below it.
 	   'U 'loop-until ; qt pred loop-until ; loop qt until pred is true
+	   'u 'loop-until-char ; qt char loop-until-char; loop qt until char is beneath the cursor.
 	   'W 'loop-while ; qt pred loop-while ; loop qt while pred is true
 	   'i 'insert ; insert the top of the stack as text into the buffer
 

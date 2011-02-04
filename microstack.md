@@ -72,7 +72,8 @@ In general, microstack takes a specially formatted string, parses it
 into a series of single-character "operands," numbers or strings and
 then passes that sequence through a translator which transforms
 symbols into stack-language words using a dictionary.  Operands are
-single characters, strings are like Lisp strings, numbers like lisp
+single characters, strings are like Lisp strings (except they can be
+delimimted with single or double quotes in pairs), numbers like lisp
 numbers, and the only special syntax is `[]` for quotation.
 Everything inside a `[]` is compiled into a stack-quotation using the
 microstack compiler.
@@ -128,7 +129,7 @@ the language supports the following operands
 	(intern "%") 'format ; lst format-string format; calls format with the string format-string and lst as rest args
 	(intern "|") 'compose ; compose two quotations
 	(intern "/") 'curry ; curry the value on the stack into the quotation below it.
-	'U 'loop-until ; qt pred loop-until ; loop qt until pred is true
+	'U 'loop-until ; qt pred loop-until ; loop qt until pred is true	   
 	'W 'loop-while ; qt pred loop-while ; loop qt while pred is true
 	'i 'insert ; insert the top of the stack as text into the buffer
 
