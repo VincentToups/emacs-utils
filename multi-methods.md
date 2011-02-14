@@ -23,7 +23,7 @@ object-oriented systems can be constructed, in parallel or enmeshed
 with the underlying object system.  Similarly, emacs has no native
 object system.  Multimethods provide a flexible way to introduce
 systems of graded complexity into emacs code for when you want
-something smaller or more integrated than EIEIO, for instance.
+something smaller or more integrated than [EIEIO](http://cedet.sourceforge.net/eieio.shtml), for instance.
 
 What are Multimethods?
 ----------------------
