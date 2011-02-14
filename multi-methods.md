@@ -7,7 +7,7 @@ here, like implementations of [Clojure's destructuring bind and
 monads](https://github.com/VincentToups/emacs-utils/blob/master/README.md)
 in emacs lisp.  These projects highlight the usefulness of emacs as a
 computer science experimentation environment, but they are arguably
-not very useful: you can implement almost anything in a good lisp, but
+not very _practically_ useful: you can implement almost anything in a good lisp, but
 that doesn't mean the easy implementation will be fast or usable, in
 terms of error messages and failure behavior (although I make some
 effort towards this).
@@ -19,7 +19,7 @@ untutored eye).  Clojure lives in the Java ecosystem, and so depends
 on and interacts with Java's object model.  Yet its semantically
 somewhat different than Java, and it isn't itself object oriented.
 Multimethods provide a flexible system on which one or more
-object-oriented systems coulkd be constructed, in parallel or enmeshed
+object-oriented systems can be constructed, in parallel or enmeshed
 with the underlying object system.  Similarly, emacs has no native
 object system.  Multimethods provide a flexible way to introduce
 systems of graded complexity into emacs code for when you want
