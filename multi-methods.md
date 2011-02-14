@@ -3,7 +3,8 @@ Multimethods For Emacs Lisp
 
 One of my favorite ways of understanding something is to implement/do
 it.  This kind of reasoning has led to some of the other projects
-here, like implementations of Clojure's destructuring bind and monads
+here, like implementations of [Clojure's destructuring bind and
+monads](https://github.com/VincentToups/emacs-utils/blob/master/README.md)
 in emacs lisp.  These projects highlight the usefulness of emacs as a
 computer science experimentation environment, but they are arguably
 not very useful: you can implement almost anything in a good lisp, but
@@ -109,10 +110,10 @@ And now test some calls:
 Note that drawing a griffon invokes code to draw a monster, because `:griffon isa? :monster`.  If we want specific behavior for the griffon, we can define specific methods:  
 
     (defunmethod draw [:griffon :text-console] (g s)
-      "draw a griffon specically, to a text screen")
+      "draw a griffon specifically, to a text screen")
 
     (defunmethod draw [:griffon :sdl-surface] (g s)
-      "draw a griffon specically, to an sdl screen")
+      "draw a griffon specifically, to an sdl screen")
 
     (draw griffon surface) ;-> "draw a griffon specically, to an sdl screen"
 
