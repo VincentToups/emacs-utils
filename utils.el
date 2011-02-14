@@ -931,6 +931,18 @@
 			(not ($ alist-el-key in keys)))
 		  collect element)))
 
+(defun dissoc-equal (alist &rest keys)
+  "Returns a new ALIST without KEYS.  Use EQUAL for equality."
+  (let ((keys (flatten keys)))
+	(loop for element in alist when
+		  (let ((alist-el-key 
+				 (if (listp element)
+					 (car element)
+				   element)))
+			(not ($ alist-el-key in keys #'equal)))
+		  collect element)))
+
+
 (defun* alist>> (&optional alist &rest rest)
   "Create or functionally modifies an ALIST.
    (alist>> alist [key val]...) adds key vals to the alist.
@@ -951,6 +963,28 @@
 		   (symbols (mapcar #'car pairs))
 		   (dalist (dissoc alist symbols)))
 	  (foldl #'cons dalist (reverse (bunch-list rest)))))))
+
+(defun* alist-equal>> (&optional alist &rest rest)
+  "Create or functionally modifies an ALIST.
+   (alist>> alist [key val]...) adds key vals to the alist.
+   (alist>> [key val]...) returns a new alist with keys and vals. Use EQUAL for redundancy checking."
+  (cond 
+   ((and (equal nil alist)
+		 (equal nil rest))
+	nil)
+   ((and (listp alist)
+		 (equal nil rest))
+	alist)
+   ((and (not (listp alist))
+		 (not (equal nil rest)))
+	(foldl #'cons nil (reverse (bunch-list (cons alist rest)))))
+   ((and (listp alist)
+		 (not (equal nil rest)))
+	(let* ((pairs (bunch-list rest))
+		   (symbols (mapcar #'car pairs))
+		   (dalist (dissoc-equal alist symbols)))
+	  (foldl #'cons dalist (reverse (bunch-list rest)))))))
+
 
 (defun alist-keys (alist)
   "Just the alist-keys."

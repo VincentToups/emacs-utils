@@ -16,20 +16,47 @@
   (lexical-let ((kw kw))
 	(lambda (table &rest args) (table-like-get table kw))))
 
-(defmacro defmulti (name dispatch)
+(defun over-all-args (kw/f)
+  (lexical-let ((kw/f kw/f))
+	(if (functionp kw/f)
+		(lambda (&rest args)
+		  (map 'vector kw/f args))
+	  (lambda (&rest args)
+		(map 'vector 
+			 (lambda (tble) (table-like-get tble kw/f))
+			 args)))))
+
+(defun macro-functionp (object)
+  (cond 
+   ((functionp object) t)
+   ((and (listp object)
+		 (= 2 (length object))
+		 (functionp (cadr object))))
+   (t nil)))
+
+
+(defmacro* defmulti (name dispatch &optional (doc "") (hierarchy-name '*multi-method-heirarchy*))
   "Define a multi-method NAME with dispatch function DISPATCH.  DEFUNMULTI defines specific instances of the method."
   (let ((table-name (mk-dispatch-table-name name))
 		(dispatch-name (mk-dispatch-function-name name))
 		(args-name (gensymf "multi-%s-args" name))
 		(internal-name (gensymf "multi-%s-holder" name))
-		(dispatch (if (not (functionp dispatch)) (make-keyword-accessor dispatch) dispatch)))
+		(temp (gensym)))
 	`(progn 
 	   (defvar ,table-name (alist>>) ,(format "dispatch-table for %s" name))
-	   (defvar ,dispatch-name ,dispatch ,(format "dispatch-function for %s" name))
+	   (setq ,table-name (alist>>))
+	   (let ((,temp ,dispatch))
+		 (defvar ,dispatch-name ,temp ,(format "dispatch-function for %s" name))
+		 (setq ,dispatch-name ,temp)
+		 (unless (functionp ,dispatch-name) 
+		   (print (format "Creating a dispatch function for %S." ,dispatch-name))
+		   (setq ,dispatch-name (make-keyword-accessor ,dispatch-name))))
 	   (defun ,name (&rest ,args-name)
-		 (let ((,internal-name (isa-dispatch (apply ,dispatch-name ,args-name) ,table-name (make-resolve-by-table (alist *preferred-dispatch-table* ',name) ',name))))
+		 ,doc
+		 (let* ((*multi-method-heirarchy* ,hierarchy-name)
+				(,internal-name (isa-dispatch (apply ,dispatch-name ,args-name) ,table-name (make-resolve-by-table (alist *preferred-dispatch-table* ',name) ',name))))
 		   (if ,internal-name (apply ,internal-name ,args-name)
-			 (error (format ,(format "No known method for args %%S for multimethod %s." name) ,args-name))))))))
+			 (error (format ,(format "No known method for args %%S for multimethod %s.\n  Dispatch value is: %%S" name) ,args-name (apply ,dispatch-name ,args-name)))))))))
 
 (defmacro* defunmethod (name value arglist &body body)
   "Define a method using DEFUN syntax for the dispatch value VALUE."
@@ -37,7 +64,7 @@
 		(table-name (mk-dispatch-table-name name)))
 	`(let ((,g (lambda ,arglist ,@body)))
 	   (setq ,table-name 
-			 (alist>> ,table-name ,value ,g))
+			 (alist-equal>> ,table-name ,value ,g))
 	   ',name)))
 
 (defvar *preferred-dispatch-table* nil "Table of method dispatch resolution rules.")
@@ -83,6 +110,20 @@
   (let ((children (alist *multi-method-heirarchy* :down)))
 	(setf (alist *multi-method-heirarchy* :down) (alist-add-to-set children parent child)))
   *multi-method-heirarchy*)
+
+(defun derive2 (parent child)
+  "Declare a PARENT-CHILD relationship in the dynamically scoped hierarchy."
+  (add-child-relation parent child)
+  (add-parent-relation child parent))
+
+(defun derive (&rest args)
+  "derive H PARENT CHILD establishes a parent-child relationship in H, a heirarchy.
+   derive PARENT CHILD uses the default hierarchy."
+  (case (length args)
+	((2) (apply #'derive2 args))
+	((3) (let ((*multi-method-heirarchy* (car args)))
+		   (apply #'derive2 (cdr args))))
+	(t "Derive takes 2 or 3 arguments.  More or less were given.")))
 
 (defun mm-parents (child)
   "Get the PARENTS of CHILD from the hierachy in the dynamic scope."
@@ -197,10 +238,6 @@
   (lexical-let ((restbl resolution-table)
 				(method-name method-name))
 	(lambda (object rank p1 p2)
-	  (print object) 
-	  (print rank)
-	  (print p1)
-	  (print p2)
 	  (let-if resolution (alist restbl (vector (car p1) (car p2)))
 			  (list rank (alist (list p1 p2) resolution))
 			  (error "Method dispatch ambiguity for %s unresolved (%S vs %S)." method-name (car p1) (car p2))))))
