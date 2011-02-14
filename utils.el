@@ -10,12 +10,10 @@
 
 (defun list->vector (lst)
   "Convert a list to a vector."
-  (assert (listp lst) t "list->vector: input not a list.")
   (coerce lst 'vector))
 
 (defun vector->list (vec)
   "Convert a vector to a list."
-  (assert (vectorp vec) t "vector->list input not a vector.")
   (coerce vec 'list))
 
 (defun get-current-line-substring ()
@@ -765,7 +763,7 @@
   "Test to see if a symbol has a value."
   (let ((return-val nil))
 	(condition-case nil (setq return-val (symbol-value symbol))
-	(error nil))))
+	  (error nil))))
 
 (defmacro let-repeatedly-until (name pred &rest forms)
   "Like let-repeatedly, but stop once PRED is TRUE, returning last NAME value."
@@ -864,6 +862,16 @@
 (defun* alist (alist el)
   "Access element EL in an alist ALIST."
   (cadr (assoc el alist)))
+
+(defun alist! (alist el value)
+  "Destructively updates EL to VALUE in ALIST."
+  (let ((element-holder (assoc el alist)))
+	(if element-holder (setf (cadr element-holder) value)
+	  (setcdr (last alist) (list (list el value)))))
+  alist)
+
+(defsetf alist alist!)
+
 (defun* alist-or (alist el &optional (or-val nil))
   "Like ALIST but returns OR-VAL if (alist lst el) is nil."
   (let ((v (assoc el alist)))
@@ -898,9 +906,6 @@
 
 (defun alist-conjugate (alst key fun)
   "Returns a new alist where the value of key is now (fun (alist alst key))."
-  (print alst)
-  (print key)
-  (print fun)
   (let ((val (alist alst key)))
 	(alist>> alst key (funcall fun val))))
 
@@ -909,6 +914,11 @@
   (alist-conjugate alst key 
 				   (lexical-let ((value value))
 					 (lambda (xxx) (cons value xxx)))))
+
+(defun alist-add-to-set (alst key value)
+  (alist-conjugate alst key
+				   (lexical-let ((value value))
+					 (lambda (xxx) (if (not ($ value in xxx)) (cons value xxx) xxx)))))
 
 (defun dissoc (alist &rest keys)
   "Returns a new ALIST without KEYS."
@@ -1153,6 +1163,36 @@
 (defun even-indexed-elements (list)
   "Just return the even-indexed elements of the list."
   (filter-by-index #'evenp list))
+
+(defun none-nil (lst)
+  (and-over #'identity lst))
+
+
+
+(defun map&filter (filter-fun transform &rest lists)
+  "Map TRANSFORM across elements in LISTS keeping only those for which FILTER-FUN is true on the output of TRANSFORM."
+  (let ((rests lists)
+		(output nil))
+	(loop while (none-nil rests) do
+		  (let* ((els (mapcar #'car rests))
+				 (new-rests (mapcar #'cdr rests))
+				 (val (apply transform els)))
+
+			(setq rests new-rests)
+			(if (funcall filter-fun val) (push val output))))
+	(reverse output)))
+
+(defun filter&map (filter-fun transform &rest lists)
+  "Map TRANSFORM across ELEMENTS in LISTS only for those for which FILTER-FUN is true."
+  (let ((rests lists)
+		(output nil))
+	(loop while (none-nil rests) do
+		  (let* ((els (mapcar #'car rests))
+				 (new-rests (mapcar #'cdr rests))
+				 (check (apply filter-fun els)))
+			(setq rests new-rests)
+			(if check (push (apply transform els) output))))
+	(reverse output)))
 
 (defun factor (n)
   "factor a number n by recourse to the command line utility FACTOR."
@@ -1625,5 +1665,12 @@
 
 (defconst pi 3.14159265 "The constant pi.")
 (defconst phi 1.61803399 "The golden ratio")
+
+(defun gensymf (&rest args)
+  (gensym (apply #'format args)))
+
+(defun* for-work-monitor (&optional (val 100))
+  (interactive)
+  (set-face-attribute 'default nil :height val))
 
 (provide 'utils)

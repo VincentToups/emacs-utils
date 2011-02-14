@@ -232,21 +232,21 @@
 	(format "Mix %f %sL of %s stock" (funcall (alist-in *units-map* `(,units :in)) dv)
 			(||| {units} "%s" swap 2>format dup length 1 swap substring) substance)))
 
-(defcurryl hpo-handler concentration-handler
+(defcurryl hpo-handler #'concentration-handler
   "HPO")
 
-(defcurryl da-handler  concentration-handler
+(defcurryl da-handler  #'concentration-handler
   "Dopamine")
 
-(defcurryr default-da-handler  da-handler  (from-milli 1)    (from-milli 50) :micro)
-(defcurryr default-hpo-handler hpo-handler (from-milli 1000) (from-milli 50) :micro)
+(defcurryr default-da-handler  #'da-handler  (from-milli 1)    (from-milli 50) :micro)
+(defcurryr default-hpo-handler #'hpo-handler (from-milli 1000) (from-milli 50) :micro)
 
-(defdecorated default-hpo-handler-micro default-hpo-handler 
+(defdecorated default-hpo-handler-micro #'default-hpo-handler 
   (lambda (arglist)
 	(cons (from-micro (car arglist))
 		  (cdr arglist))))
 
-(defdecorated default-da-handler-nano default-da-handler 
+(defdecorated default-da-handler-nano #'default-da-handler 
   (lambda (arglist)
 	(cons (from-nano (car arglist))
 		  (cdr arglist))))

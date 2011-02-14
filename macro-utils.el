@@ -288,19 +288,19 @@
 	(if x x (tbl!)))
 
 
-(setf *fundamentals* '(if let let* cond lambda defun))
+  (setf *fundamentals* '(if let let* cond lambda defun))
 
-(dont-do 
- (symbols-in-form '(let ((a 10) (y 11)) (+ a y x)))
- (optimize-let-form '(let* ((x 10) (y 11) (z (+ x x))) (+ x z)))
- (count-free-usages 'x '(let ((y 11) (z (+ x x))) (+ x z)))
- (get-let-body '(let ((y 11) (z (+ x x))) (+ x z)))
+  (dont-do 
+   (symbols-in-form '(let ((a 10) (y 11)) (+ a y x)))
+   (optimize-let-form '(let* ((x 10) (y 11) (z (+ x x))) (+ x z)))
+   (count-free-usages 'x '(let ((y 11) (z (+ x x))) (+ x z)))
+   (get-let-body '(let ((y 11) (z (+ x x))) (+ x z)))
 
- (count-free-usages 'x '(let ((x 10) (y 11) (z (+ x x))) (+ x z)))
- (count-free-usages 'x '(let* ((x 10) (y 11) (z (x x x))) (+ x z)))
- (count-free-usages 'z '(let* nil (+ x z)))
- (length (get-let-binders '(let* nil (+ x z))))
- (count-free-usages-let* 'z '(let* nil (+ x z)))
- (count-free-usages 'z (get-let-body '(let* nil (+ x z))) 0)))
+   (count-free-usages 'x '(let ((x 10) (y 11) (z (+ x x))) (+ x z)))
+   (count-free-usages 'x '(let* ((x 10) (y 11) (z (x x x))) (+ x z)))
+   (count-free-usages 'z '(let* nil (+ x z)))
+   (length (get-let-binders '(let* nil (+ x z))))
+   (count-free-usages-let* 'z '(let* nil (+ x z)))
+   (count-free-usages 'z (get-let-body '(let* nil (+ x z))) 0)))
 
 (provide 'macro-utils)

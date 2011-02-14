@@ -1,4 +1,5 @@
 (require 'with-stack)
+(require 'utils)
 (require 'monads)
 (require 'functional)
 
@@ -12,12 +13,44 @@
 	 end:)
 (||| word: foldl ;( list init qtn -- result )
 	 swapd leach end:)
+(defstackword current-continuation 
+  (push *stack* *stack*))
+
+(defstackword apply-emacs-fun 
+  (let ((arg-list (pop *stack*))
+		(fun (pop *stack*)))
+	(push (apply fun arg-list) *stack*)))
+
+(defstackword alist>> 
+  (let ((args (pop *stack*)))
+	(push (apply #'alist>> (cons nil args)) *stack*)))
+
+(defstackword alist 
+  (|||- 2>alist))
+
+(defstackword format ; ( format-string arguments -- string )
+  (|||- cons 'format swap apply-emacs-fun))
+
+(||| word: if* pick '(drop call) '(2nip call) if end:)
+
+(defstackword cond ; ( association-list -- ...)
+  (let ((condition-pairs (pop *stack*))
+		(done nil))
+	(loop while (not done)
+		  for cond-pair
+		  in condition-pairs do
+		  (let ((condquot (car cond-pair))
+				(doquot   (cadr cond-pair)))
+			(if (|||- {condquot} call)
+				(progn 
+				  (|||- drop {doquot} call)
+				  (setq done t))
+			  (|||- drop))))))
 
 (defn split-by-match 
   ([begin end [first & rest :as lst] 
 		  height
 		  outlist]
-   
    (cond (lst
 		  (cond
 		   ((equal first begin)

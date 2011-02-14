@@ -121,6 +121,12 @@
 		(rest (pop *stack*)))
 	(push (apply #'format (cons fmtstr rest)) *stack*)))
 
+(defstackword generic-move 
+  (let ((arg (pop *stack*)))
+	(cond
+	 ((numberp arg) (|||- {arg} word))
+	 ((
+
 (setq micro-stack-map 
 	  (alist>> 
 	   'b 'backward ; move the point backward once

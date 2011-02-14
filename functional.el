@@ -51,38 +51,39 @@
 
 (defmacro defcurryl (newname &rest args)
   "Define a function with left-most partial application on another function."
-  (if (stringp (car args))
-	  `(defcurryl-doc ,newname ,(car args) ,@(cdr args))
-	`(defcurryl-no-doc ,newname ,@args)))
+  `(defcurryl-no-doc ,newname ,@args))
+;; (if (stringp (car args))
+;; 	  `(defcurryl-doc ,newname ,(car args) ,@(cdr args))
+;; 	`(defcurryl-no-doc ,newname ,@args)))
 
-  (defmacro defcurryr (newname oldname &rest args)
-	(let ((narglist (gensym (format "%s-arglist" newname))))
-	  `(defun ,newname (&rest ,narglist)
-		 (apply #',oldname (append ,narglist (list ,@args))))))
+(defmacro defcurryr (newname oldname &rest args)
+  (let ((narglist (gensym (format "%s-arglist" newname))))
+	`(defun ,newname (&rest ,narglist)
+	   (apply ,oldname (append ,narglist (list ,@args))))))
 
-  (defmacro clambdal (oldf &rest args)
-	(let ((narglist (gensym "clambdal-arglist-")))
-	  `(lambda (&rest ,narglist)
-		 (apply ,oldf ,@args ,narglist))))
+(defmacro clambdal (oldf &rest args)
+  (let ((narglist (gensym "clambdal-arglist-")))
+	`(lambda (&rest ,narglist)
+	   (apply ,oldf ,@args ,narglist))))
 
-  (defmacro cl (&rest stuff)
-	`(clambdal ,@stuff))
-
-
-  (defmacro clambdar (oldf &rest args)
-	(let ((narglist (gensym "clambdal-arglist-")))
-	  `(lambda (&rest ,narglist)
-		 (apply ,oldf (append ,narglist (list ,@args))))))
-
-  (defmacro cr (&rest stuff)
-	`(clambdar ,@stuff))
+(defmacro cl (&rest stuff)
+  `(clambdal ,@stuff))
 
 
-  (defmacro defdecorated (newname oldname transformer)
-	(let ((args (gensym (format "%s-decorated-args" newname))))
-	  `(defun ,newname (&rest ,args)
-		 (apply #',oldname 
-				(funcall #',transformer ,args)))))
+(defmacro clambdar (oldf &rest args)
+  (let ((narglist (gensym "clambdal-arglist-")))
+	`(lambda (&rest ,narglist)
+	   (apply ,oldf (append ,narglist (list ,@args))))))
+
+(defmacro cr (&rest stuff)
+  `(clambdar ,@stuff))
+
+
+(defmacro defdecorated (newname oldname transformer)
+  (let ((args (gensym (format "%s-decorated-args" newname))))
+	`(defun ,newname (&rest ,args)
+	   (apply ,oldname 
+			  (funcall ,transformer ,args)))))
 
   (defmacro lambdecorate (oldf transformer)
 	(let ((args (gensym (format "decorated-args"))))

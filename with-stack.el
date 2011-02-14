@@ -68,7 +68,7 @@
 	(and ($ ">" in s)
 		 (let* ((parts (split-string s ">"))
 				(n-stack-part (car parts)))
-		   (or (eq n-stack-part "n")
+		   (or (string= n-stack-part "n")
 			   (numberp (read n-stack-part)))))))
 
 (defun gen-temp-syms (n)
@@ -88,10 +88,11 @@
 		 (n (read (car parts)))
 		 (sym (intern (join (cdr parts) ">")))
 		 (list-sym (gensym "npop-"))
-		 (temp-syms (gen-temp-syms n)))
+		 (temp-syms (if (numberp n) (gen-temp-syms n) nil)))
+	(print n)
 	(cond ((and (symbolp n) (eq n 'n))
-		   `(let ((,list-sym (pop-n *stack*)))
-			  (appply #',sym (reverse ,list-sym))))
+		   `(let ((,list-sym (pop-n (pop *stack*) *stack*)))
+			  (apply #',sym (reverse ,list-sym))))
 		  ((numberp n)
 		   `(let ,(loop for s in temp-syms collect
 						`(,s (pop *stack*)))
@@ -501,11 +502,13 @@
 (defstackword in ;( item lst -- bool )
   (|||- 2>in))
 
-
-
 (univalent-stack-words car cdr cadr first second third fourth list regexp-quote rxq reverse length)
-(bivalent-stack-words split-string join)
+(bivalent-stack-words split-string join cons)
 (n-valent-stack-words 3 replace-regexp-in-string reprxstr substring)
 
+(defstackword apply-emacs-fun 
+  (let ((arg-list (pop *stack*))
+		(fun (pop *stack*)))
+	(push (apply fun arg-list) *stack*)))
 
 (provide 'with-stack)
