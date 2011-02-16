@@ -200,7 +200,7 @@
 	(if m (apply m args)
 	  (error "get-method-funcall: No method for %s with dispatch value %S." name dispatch-value))))
 
-(defun get-method-funcall (name dispatch-value args)
+(defun get-method-apply (name dispatch-value args)
   "Get the method associated with NAME and DISPATCH-VALUE and call it on ARGS, a list."
   (let ((m (get-method name dispatch-value)))
 	(if m (apply m args)

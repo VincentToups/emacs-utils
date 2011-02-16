@@ -115,7 +115,29 @@ Note that drawing a griffon invokes code to draw a monster, because `:griffon is
     (defunmethod draw [:griffon :sdl-surface] (g s)
       "draw a griffon specifically, to an sdl screen")
 
-    (draw griffon surface) ;-> "draw a griffon specically, to an sdl screen"
+    (draw griffon surface) ;-> "draw a griffon specifically, to an sdl
+    screen"
+
+Super
+-----
+
+A frequent idiom in object oriented programming is to call a method's
+`super`, that is, its implementation corresponding to the object from
+which the current object is derived.  We have a multiple dispatch
+system here, so there isn't a simple notion of super, however you
+might still want to accomplish the same thing.  You do that using one
+of a trio of functions: `get-method`, `get-method-funcall` or
+`get-method-apply`.  Each takes as its first two arguments a method
+name (a symbol), and a dispatch value.  `get-method` simply returns a
+the method, if it exists, corresponding as closely as possible to the
+dispatch value.  `get-method-funcall` calls that same method with the
+arguments passed in, and `get-method-apply` does the same thing,
+except it applies the method to the list passed in.  If we wanted
+to use this in the case of the griffon, we'd say something like:
+
+    (defunmethod draw [:griffon :sdl-surface] (g s)
+      (get-method-funcall 'draw [:monster :sdl-surface] g s)
+      <griffon specific code>)
 
 Caveats, etc
 ------------
