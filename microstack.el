@@ -2,7 +2,10 @@
 (require 'functional)
 (require 'with-stack)
 (require 'stack-words)
+(require 'multi-methods)
 (provide 'microstack)
+
+
 
 (defunc =microstack-symbol ()
   "Parser for a microstack symbol, or a space (no-op)."
@@ -50,8 +53,8 @@
 (defun microstack-parser ()
   "Parser for the microstack language."
   (zero-or-more (=or
-				 (=microstack-symbol)
 				 (=number)
+				 (=microstack-symbol)
 				 (=microstack-string)
 				 (=microstack-quote))))
 
@@ -121,22 +124,124 @@
 		(rest (pop *stack*)))
 	(push (apply #'format (cons fmtstr rest)) *stack*)))
 
-(defstackword generic-move 
-  (let ((arg (pop *stack*)))
-	(cond
-	 ((numberp arg) (|||- {arg} word))
-	 ((
+(defun move-dispatcher (object)
+  "Dispatch for generic motion."
+  (cond ((numberp object) :char)
+		((listp object) (car object))
+		(t nil)))
+
+(defmulti move #'move-dispatcher "A generic motion function.")
+
+(defunmethod move :char (movement)
+  (let ((n (if 
+			   (listp movement) (cadr movement)
+			 movement)))
+	(forward-char n)))
+
+(defunmethod move :word (movement)
+  (forward-word (cadr movement)))
+
+(defunmethod move :line (movement)
+  (beginning-of-line)
+  (forward-line (cadr movement)))
+
+(defunmethod move :paragraph (movement)
+  (forward-paragraph (cadr movement)))
+
+(defstackword word 
+  (|||- :word swap 2>list))
+
+(defstackword paragraph 
+  (|||- :paragraph swap 2>list))
+
+(defstackword page
+  (|||- :page swap 2>list))
+
+(defstackword line 
+  (|||- :line swap 2>list))
+
+(defstackword char 
+  (|||- :char swap 2>list))
+
+(defstackword sym 
+  (|||- :symbol swap 2>list))
+
+(defstackword s-expression 
+  (|||- :sexp swap 2>list))
+
+(defstackword make-quantity-of 
+  (|||- 1>make-keyword swap 2>list))
+
+($ :char		derives-from :movement-type)
+($ :movement-type-with-extent 
+   derives-from :movement-type)
+($ :word		derives-from :movement-type-with-extent)
+($ :paragraph	derives-from :movement-type-with-extent)
+($ :line		derives-from :movement-type-with-extent)
+
+
+(defmulti move-kill #'move-dispatcher "Generic deletion method.")
+
+(defmulti pre-delete-movement (function move-dispatcher) "Handle movement before delete.")
+(defunmethod pre-delete-movement :movement-type (movement)
+  nil
+  )
+
+(defmulti post-delete-movement (function move-dispatcher) "Handle movement before delete.")
+(defunmethod post-delete-movement :movement-type (movement)
+  nil
+  )
+
+(defun bounds-of-thing-at-point-kw (kw)
+  (bounds-of-thing-at-point (keyword->symbol kw)))
+
+(defunmethod pre-delete-movement :movement-type-with-extent (movement)
+  (let* ((thing-bounds (bounds-of-thing-at-point-kw (car movement)))
+		 (start (car thing-bounds))
+		 (stop  (cdr thing-bounds)))
+	(cond ((positive? (cadr movement)) (goto-char start))
+		  ((negative? (cadr movement)) (goto-char stop))
+		  ((zero? (cadr movement)) nil))))
+
+(defunmethod post-delete-movement :movement-type-with-extent (movement)
+  (let* ((thing-bounds (bounds-of-thing-at-point-kw (car movement)))
+		 (start (car thing-bounds))
+		 (stop  (cdr thing-bounds)))
+	(cond ((positive? (cadr movement)) (goto-char stop))
+		  ((negative? (cadr movement)) (goto-char start))
+		  ((zero? (cadr movement)) nil))))
+
+
+(defun point-in-word? ()
+  (save-excursion (let ((pt (point)))
+					(backward-word) (forward-word)
+					(!= pt (point)))))
+
+(defunmethod move-kill :movement-type (movement)
+  (let (p1 p2)
+	(pre-delete-movement movement)
+	(setq p1 (point))
+	(move movement)
+	(post-delete-movement movement)
+	(setq p2 (point))
+	(kill-region p1 p2)))
+
+
+
+(defstackword move (|||- 1>move drop))
+(defstackword kill (|||- 1>move-kill drop))
 
 (setq micro-stack-map 
 	  (alist>> 
-	   'b 'backward ; move the point backward once
-	   'B '1>backward-char ; move the point backward n times, pop n from the stack
-	   'f 'forward ; move the point forward once
-	   'F '1>forward-char ; move the point forward n times, pop n from the stack
-	   'd 'delete-forward0 ; delete forward once
-	   'D 'delete-forward ; delete forward n times, pop n from the stack
-	   'k 'delete-backward0 ; delete backward once
-	   'K 'delete-backward ; delete backward n times, remove n from the stack
+	   'm 'move ; generic movement.  pops an item from the stack, then moves appropriately 
+	   'k 'kill ; generic move-and-kil, pops and item of the stack, marks, moves, and kill-region's
+	   'l 'line ; specify that a number indicates a number of lines
+	   'w 'word ; specify that a number indicates a number of words
+	   'y 'sym ; specify that a number indicates a number of symbols
+	   'p 'paragraph ; specify that a number indicates a number of paragraphs
+	   'P 'page ; specify that a number indicates a number of pages
+	   'e 's-expression ; specify that a number indicates a number of s-expressions
+	   'G 'make-quantity-of ; take a string and a number and create a general quantity 4"sentence"G -> (:sentence 4)
 	   'q 'microstack->quotation ; convert a STRING to a microstack compiled quotation, "..."q is eq to [...]
 	   'Q 'string->quotation ;push the stack word represented by string onto the stack to be called later
 	   '! 'call ; call a quotation/stack word
@@ -159,6 +264,7 @@
 	   's '1>search-forward ; search forward for the string on the stack, which is popped
 	   'S '1>search-forward-regexp ; search forward for the regex on the stack, which is popped
 	   'c 'concat ; concat two strings
+	   'o 'rot
 	   (intern ",") 'print-stack ; print the stack
 	   (intern ":") 'dup ; dup
 	   (intern "$") 'swap ; swap the top two stack elements
@@ -174,8 +280,6 @@
 	   'i 'insert ; insert the top of the stack as text into the buffer
 
 ))
-
-
 
 (defun translate-microstack (code)
   "Translate the single character symbols to their stack words.  Process special microstack behavior words."
@@ -202,4 +306,3 @@
 		 (code (translate-microstack code)))
 	(print code)
 	(do-microstack-parsed-translated code)))
-

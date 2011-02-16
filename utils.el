@@ -1684,6 +1684,7 @@
   (shf "nautilus %s &" s))
 
 (defun unfold (pred f gen init)
+  "The unfold combinator.  Call GEN repeatedly on its result (starting with init) and collect the results of F on that value until PRED on that value is nil."
   (let ((output nil))
 	(loop while (funcall pred init) do
 		  (push (funcall f init) output)
@@ -1691,6 +1692,7 @@
 	output))
 
 (defun unfold-mem (pred f gen init)
+  "The unfold combinator.  Call GEN repeatedly on its result (starting with init) and collect the results of F on that value until PRED all previous values of F on value is nil."
   (let ((output nil))
 	(loop while (apply pred output) do
 		  (push (funcall f init) output)
@@ -1701,10 +1703,32 @@
 (defconst phi 1.61803399 "The golden ratio")
 
 (defun gensymf (&rest args)
+  "Like gensym with format semantics on arguments."
   (gensym (apply #'format args)))
 
 (defun* for-work-monitor (&optional (val 100))
+  "resize the text on screen for work monitor."
   (interactive)
   (set-face-attribute 'default nil :height val))
+
+(defun zero? (n)
+  "Is N zero?"
+  (= n 0))
+
+(defun positive? (n)
+  "Is n positive?"
+  (and (not (zero? n))
+	   (= (abs n) n)))
+
+(defun negative? (n)
+  "Is n negative?"
+  (and (not (zero? n))
+	   (not (positive? n))))
+
+(defun keyword->symbol (kw)
+  "Convert a keyword to a regular symbol."
+  (intern (substring (format "%s" kw) 1)))
+
+
 
 (provide 'utils)
