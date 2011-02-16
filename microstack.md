@@ -50,12 +50,13 @@ What the hell is going on here?
 Lets take a more complex example than the ones above and read it out
 piece by piece, then discuss its stack language representation.
 
-    [d][@"}"=]U
+    [1k][@"}"=]U
 
 This piece of code reads "delete forward until you reach a }".  How do
-I get that from the above?  `[d]` is a quotation, because it starts
-with `[` and ends with `]`.  `d` means "delete forward".  So `[d]`
-pushes a quotation which, when called, deletes one character forward.  
+I get that from the above?  `[1k]` is a quotation, because it starts
+with `[` and ends with `]`.  1 pushes 1 onto the stack `k` means
+"kill".  So `[1k]` pushes a quotation which, when called, deletes one
+character forward.
 
 Immediately after this quotation is another, `[@"}"=]`, which pushes
 the character under the cursor onto the stack (`@`), pushes "}", and
