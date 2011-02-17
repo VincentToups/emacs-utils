@@ -3,9 +3,28 @@
 (require 'functional)
 (provide 'multi-methods)
 
+(defvar *hierarchy-weak-table* (make-hash-table :test 'eql :weak t) "Weak table for keeping track of hierarchies.")
+
+(defun make-hierarchy ()
+  "Create a hierarchy for multi-method dispatch."
+  (let ((tag (gensym "hierarchy-tag")))
+	(puthash tag t  *hierarchy-weak-table*)
+	(alist>> ::::hierarchy-tag tag)))
+
+(defun hierarchyp (object)
+  "Tests to see if an object is a hierarchy."
+  (and (listp object)
+	   (let-if tag (alist object ::::hierarchy-tag)
+			   (gethash tag *hierarchy-weak-table* )
+			   nil)))
+
 (defun mk-dispatch-table-name (method)
   "generates the symbol for a dispatch table for METHOD"
   (internf "--%s-dispatch-table" method))
+
+(defun mk-dispatch-hierarchy-name (method)
+  "generates the symbol for hierarchy name for METHOD"
+  (internf "--%s-hierarchy-table" method))
 
 (defun mk-dispatch-function-name (method)
   "generates the symbol for the dispatch function for METHOD"
@@ -40,16 +59,19 @@
    (t nil)))
 
 
-(defmacro* defmulti (name dispatch &optional (doc "") (hierarchy-name '*multi-method-heirarchy*))
+(defmacro* defmulti (name dispatch &optional (doc "") (hierarchy-expression '*multi-method-heirarchy*))
   "Define a multi-method NAME with dispatch function DISPATCH.  DEFUNMULTI defines specific instances of the method."
   (let ((table-name (mk-dispatch-table-name name))
 		(default-method-name (mk-default-method-name name))
 		(dispatch-name (mk-dispatch-function-name name))
 		(args-name (gensymf "multi-%s-args" name))
 		(internal-name (gensymf "multi-%s-holder" name))
+		(hierarchy-name (mk-dispatch-hierarchy-name name))
 		(temp (gensym)))
 	`(progn 
 	   (defvar ,default-method-name nil)
+	   (defvar ,hierarchy-name nil ,(format "dispatch hierarchy for %s" name))
+	   (setq ,hierarchy-name ,hierarchy-expression)
 	   (defvar ,table-name (alist>>) ,(format "dispatch-table for %s" name))
 	   (setq ,table-name (alist>>))
 	   (let ((,temp ,dispatch))
@@ -61,12 +83,15 @@
 	   (defun ,name (&rest ,args-name)
 		 ,doc
 		 (let* ((*multi-method-heirarchy* ,hierarchy-name)
-				(,internal-name (isa-dispatch (apply ,dispatch-name ,args-name) ,table-name (make-resolve-by-table (alist *preferred-dispatch-table* ',name) ',name ) ,default-method-name)))
+				(,internal-name (isa-dispatch-memo (apply ,dispatch-name ,args-name) ,table-name (make-resolve-by-table (alist *preferred-dispatch-table* ',name) ',name ) ,default-method-name)))
 		   (if ,internal-name (apply ,internal-name ,args-name)
 			 (error (format ,(format "No known method for args %%S for multimethod %s.\n  Dispatch value is: %%S" name) ,args-name (apply ,dispatch-name ,args-name)))))))))
 
 (defmacro* defunmethod-default (name arglist &body body)
+  "Define a method of last resort for the method NAME, called when no match is available in the dispatch table."
   `(progn 
+	 (let ((*multi-method-heirarchy* ,(mk-dispatch-hierarchy-name name)))
+	   (clear-dispatch-cache))
 	 (setq ,(mk-default-method-name name)
 		   (lambda ,arglist 
 			 ,@body))
@@ -77,6 +102,8 @@
   (let ((g (gensym))
 		(table-name (mk-dispatch-table-name name)))
 	`(let ((,g (lambda ,arglist ,@body)))
+	   (let ((*multi-method-heirarchy* ,(mk-dispatch-hierarchy-name name)))
+		 (clear-dispatch-cache))
 	   (setq ,table-name 
 			 (alist-equal>> ,table-name ,value ,g))
 	   ',name)))
@@ -127,6 +154,7 @@
 
 (defun derive2 (parent child)
   "Declare a PARENT-CHILD relationship in the dynamically scoped hierarchy."
+  (clear-dispatch-cache)
   (add-child-relation parent child)
   (add-parent-relation child parent))
 
@@ -143,7 +171,7 @@
   (let ((*multi-method-heirarchy* h))
 	(derive2 parent child)))
 
-(defun derive-from (children parent &optional (h *multi-method-heirarchy*))
+(defun* derive-from (children parent &optional (h *multi-method-heirarchy*))
   (let ((*multi-method-heirarchy* h))
 	(loop for child across (coerce children 'vector) do
 		  (derives-from child parent h))))
@@ -283,6 +311,46 @@
 			  (list rank (alist (list p1 p2) resolution))
 			  (error "Method dispatch ambiguity for %s unresolved (%S vs %S)." method-name (car p1) (car p2))))))
 
+(defun get-dispatch-cache-raw ()
+  "Get the dispatch cache for the hierarchy in the dynamic scope.  Create one if not available."
+  (let-if cache (alist *multi-method-heirarchy* ::::dispatch-cache)
+		  cache
+		  (let ((cache (make-hash-table :test 'equal))) 
+			(alist! *multi-method-heirarchy* ::::dispatch-cache cache)
+			cache)))
+
+(defun clear-dispatch-cache-raw ()
+  "Clear the dispatch cache for the hierarchy in the dynamic scope."
+  (alist! *multi-method-heirarchy* ::::dispatch-cache nil)
+  t)
+
+(defun clear-dispatch-cache (&rest args)
+  "Retrieve the cache of dispatches for the currently scoped hierarchy, or for one passed in."
+  (case (length args)
+	((0) (clear-dispatch-cache-raw))
+	((1) (let ((*multi-method-heirarchy* (car args)))
+		   (clear-dispatch-cache-raw)))
+	(otherwise 
+	 (error "clear-dispatch-cache: Takes either 0 or 1 arguments."))))
+
+(defun get-dispatch-cache (&rest args)
+  "Retrieve the cache of dispatches for the currently scoped hierarchy, or for one passed in."
+  (case (length args)
+	((0) (get-dispatch-cache-raw))
+	((1) (let ((*multi-method-heirarchy* (car args)))
+		   (get-dispatch-cache-raw)))
+	(otherwise 
+	 (error "get-dispatch-cache: Takes either 0 or 1 arguments."))))
+
+(defun* isa-dispatch-memo (object alist resolver &optional (default-method nil))
+  "Dispatch from an alist table based on ISA? matches.  More specific matches are preferred over less, and ambiguous matches will be resolved by the function resolver. (memoized)"
+  (let* ((cache (get-dispatch-cache))
+		 (method (gethash (list object resolver default-method) cache)))
+	(if method method
+	  (let ((method (isa-dispatch object alist resolver default-method)))
+		(puthash (list object resolver default-method) method cache)
+		method))))
+
 (defun* isa-dispatch (object alist resolver &optional (default-method nil))
   "Dispatch from an alist table based on ISA? matches.  More specific matches are preferred over less, and ambiguous matches will be resolved by the function resolver."
   (let-if method (cadr (cadr (foldl 
@@ -302,6 +370,8 @@
 		  method
 		  default-method))
 
+(isa-dispatch-memo :karl-pilkington (eval (mk-dispatch-table-name 'report)) nil nil)
+
 (dont-do
 										;example
  (defmulti report :student-name)
@@ -310,4 +380,4 @@
  (report (alist>> :student-name :ricky-gervais)) ;-> "I got an A+"
  (report (alist>> :student-name :karl-pilkington)) ;-> "Maybe I forgot to sign up for exams.")
  (report (alist>> :steven-merchant)) ;-> error, no method
-)
+ )
