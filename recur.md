@@ -87,9 +87,10 @@ Here is an example of `recur-defun*`
     (recur-defun* my-prod (list &optional (acc 1))
       (if list (recur (cdr list) (* acc (car list)))
           acc))
-    (my-prod 4) 
+    (my-prod (range 4)) 
 
-The second form evaluates, as it should, to 24.
+The second form evaluates, as it should, to 24.  (Thanks to Joseph Gay
+for the correction).
 
 Conclusions
 -----------
