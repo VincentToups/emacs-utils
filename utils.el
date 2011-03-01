@@ -427,6 +427,25 @@
 				   (list (car sk) `(tbl ,tbl-name ,(cadr sk))))
 		 ,@body))))
 
+(defmacro* let-alist (symbol-key-pairs alist &body body)
+  "Binds variables to elements of an alist table.  SYMBOL-KEY-PAIRS is a list of symbols and the keys to access the alist for that symbol."
+  (let ((alist-name (gensym "table-")))
+	`(let ((,alist-name ,alist))
+	   (let ,(loop for i from 0 below (length symbol-key-pairs)
+				   and sk in symbol-key-pairs collect
+				   (list (car sk) `(alist ,alist-name ,(cadr sk))))
+		 ,@body))))
+
+(defmacro* llet-alist (symbol-key-pairs alist &body body)
+  "Binds variables to elements of an alist table.  SYMBOL-KEY-PAIRS is a list of symbols and the keys to access the alist for that symbol.  Lexical scope."
+  (lexical-let ((alist-name (gensym "table-")))
+	`(let ((,alist-name ,alist))
+	   (let ,(loop for i from 0 below (length symbol-key-pairs)
+				   and sk in symbol-key-pairs collect
+				   (list (car sk) `(alist ,alist-name ,(cadr sk))))
+		 ,@body))))
+
+
 (defmacro* llet-seq (symbols lst &body body)
   "Binds SYMBOLS to elements of LST lexically, in BODY."
   (let ((list-name (gensym "list-")))
@@ -875,7 +894,7 @@
 (defun* alist-or (alist el &optional (or-val nil))
   "Like ALIST but returns OR-VAL if (alist lst el) is nil."
   (let ((v (assoc el alist)))
-	(if v v or-val)))
+	(if v (cadr v) or-val)))
 (defun* qalist (alist el)
   "Like ALIST but uses assq for efficiency."
   (cdr (assq el alist)))
@@ -904,9 +923,10 @@
 	(alist>> root (car keys)
 			 (alist>>-in (alist root (car keys)) (cdr keys) val))))
 
-(defun alist-conjugate (alst key fun)
-  "Returns a new alist where the value of key is now (fun (alist alst key))."
-  (let ((val (alist alst key)))
+(defun alist-conjugate (alst key fun &optional or-val)
+  "Returns a new alist where the value of key is now (fun (alist alst key)).  Accepts an
+optional OR-VAL if the key is not in the alist."
+  (let ((val (alist-or alst key or-val)))
 	(alist>> alst key (funcall fun val))))
 
 (defun alist-cons (alst key value)
@@ -1729,6 +1749,54 @@
   "Convert a keyword to a regular symbol."
   (intern (substring (format "%s" kw) 1)))
 
+(defun symbol->keyword (sym)
+  "Convert a symbol to a keyword with the same name after :"
+  (make-keyword (format "%s" sym)))
 
+(defun with-gensyms-symbol (item)
+  (if (not (or (listp item)
+			   (symbolp item)))
+	  (error "with-gensyms requires a list of symbol names or symbol/prefix pairs.");
+	(if (listp item)
+		(let ((item (car item)))
+		  (if (not (symbolp item))
+			  (error "with-gensyms requires a list of symbol names or symbol/prefix pairs.")
+			item))
+	  item)))
+
+(defun with-gensyms-prefix (item)
+  (if (not (or (listp item)
+			   (symbolp item)))
+	  (error "with-gensyms requires a list of symbol names or symbol/prefix pairs.");
+	(if (and (listp item) (= 2 (length item)))
+		(let ((item (cadr item)))
+		  (if (not (or (stringp item) (symbolp item) (listp item)))
+			  (error "with-gensyms requires a list of symbol names or symbol/prefix pairs.")
+			(format "%s" item)))
+	  (format "%s" (with-gensyms-symbol item)))))
+
+
+(defmacro* with-gensyms (symbol-expressions &body body)
+  "Performs BODY with the symbols specified in SYMBOL-EXPRESSIONS dynamically scoped in.
+SYMBOL-EXPRESSIONS is a list of either symbols or symbol/prefix pairs.  Each prefix should evaluate
+to a string or symbol. "
+  (if (not (listp symbol-expressions))
+	  (error "symbols must be a list."))
+  (let ((symbols (mapcar #'with-gensyms-symbol symbol-expressions))
+		(prefixes (mapcar #'with-gensyms-prefix symbol-expressions)))
+	`(let ,(zip symbols 
+				(mapcar (lambda (prefix) `(gensym ,prefix)) prefixes))
+	   ,@body)))
+
+(defun* n-of (n item &key (coerce-to 'list) (copy-by #'identity))
+  "Returns a sequence of type COERCE-TO with N ITEM's in it, each passed through COPY-BY,
+which is the identity, by default."
+  (coerce 
+   (loop for i from 0 below n collect (funcall copy-by item))
+   coerce-to))
+
+(defmacro db-print (form)
+  "Print the form FORM and its VALUE."
+  `(print (format "%S - %s" ',form ,form)))
 
 (provide 'utils)

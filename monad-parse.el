@@ -181,6 +181,15 @@
 (defun =digit-char ()
   (=satisfies #'digit-char?))
 
+(defun =digit-char->string ()
+  (=let* [c (=digit-char)]
+		 (if c (coerce (list c) 'string) nil)))
+
+(defun =digit-char->number ()
+  (=let* [c (=digit-char)]
+		 (if c (read (coerce (list c) 'string)) nil)))
+
+
 (defun parser-plus-2 (p1 p2)
   (lexical-let ((p1 p1)
 				(p2 p2))

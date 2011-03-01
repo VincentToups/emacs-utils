@@ -2,6 +2,7 @@
 (require 'utils)
 (require 'monads)
 (require 'functional)
+(require 'cl)
 
 (||| word: head&tail '(1>car) '(1>cdr) bi end:)
 (||| word: tail&head head&tail swap end:)
@@ -126,12 +127,12 @@
 
 (defun parse-stack-effect (se)
   (if (not (in '-- se)) (error "Improper stack effect documentation %s" se)
-	  (let-seq (in out) (split-list-drop 
-						 se 
-						 (lambda (x) (eq x '--)))
-			   (if (or (unknown-stack-effect? in)
-					   (unknown-stack-effect? out)) (stack-effect '*)
-				 (stack-effect (- (length out) (length in)))))))
+	(let-seq (in out) (split-list-drop 
+					   se 
+					   (lambda (x) (eq x '--)))
+			 (if (or (unknown-stack-effect? in)
+					 (unknown-stack-effect? out)) (stack-effect '*)
+			   (stack-effect (- (length out) (length in)))))))
 
 (defn stack-effect+ 
   ([se1 se2]
@@ -141,5 +142,8 @@
 	 (stack-effect (+ (stack-effect-val se1) (stack-effect-val se2)))))
   ([se1 se2 & rest]
    (reduce #'stack-effect+ (append (list se1 se2) rest))))
+
+(defstackword emacs-apply
+  (|||- swap 2>apply))
 
 (provide 'stack-words)

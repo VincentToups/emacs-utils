@@ -67,6 +67,9 @@
 	(and (non-empty-listp o)
 		 (eq (car o) 'let*)))
 
+  (defun let/*p (o) (or (letp o) 
+						(let*p o)))
+
   (defun defunp (o)
 	(and (non-empty-listp o)
 		 (eq (car o) 'defun)))
@@ -103,6 +106,12 @@
 	(cddr let-form))
   (defun get-let-binders (let-form)
 	(cadr let-form))
+
+  (defun get-cond-predicates (cond-form)
+	(mapcar #'car (cdr cond-form)))
+
+  (defun get-cond-bodies (cond-form)
+	(mapcar #'cdr (cdr cond-form)))
 
   (dont-do 
    (get-let-body '(let ((a b) (c d)) (+ a b) (+ c d))))
@@ -151,10 +160,12 @@
   (defun defun-likep (o)
 	(and (non-empty-listp o)
 		 ($ (car o) in *defunners* #'eq)))
-
-
   (defun third-on (lst)
 	(nthcdr 2 lst))
+
+  (defun fletp (form)
+	(and (listp form)
+		 (eq (car form) 'flet)))
 
   (defun* count-free-usages-let (sym form &optional (n 0))
 	(let ((n-in-binders 

@@ -1,9 +1,11 @@
 (require 'defn)
 (require 'utils)
 (require 'functional)
+(require 'cl)
 (provide 'multi-methods)
 
-(defvar *hierarchy-weak-table* (make-hash-table :test 'eql :weak t) "Weak table for keeping track of hierarchies.")
+(defvar *hierarchy-weak-table* (make-hash-table :test 'eql :weakness t) "Weak table for keeping track of hierarchies.")
+
 
 (defun make-hierarchy ()
   "Create a hierarchy for multi-method dispatch."
@@ -38,6 +40,20 @@
   "Creates an accessor for tables looking for KW"
   (lexical-let ((kw kw))
 	(lambda (table &rest args) (table-like-get table kw))))
+
+(defun clear-dispatch-cache-raw ()
+  "Clear the dispatch cache for the hierarchy in the dynamic scope."
+  (alist! *multi-method-heirarchy* ::::dispatch-cache nil)
+  t)
+
+(defun clear-dispatch-cache (&rest args)
+  "Retrieve the cache of dispatches for the currently scoped hierarchy, or for one passed in."
+  (case (length args)
+	((0) (clear-dispatch-cache-raw))
+	((1) (let ((*multi-method-heirarchy* (car args)))
+		   (clear-dispatch-cache-raw)))
+	(otherwise 
+	 (error "clear-dispatch-cache: Takes either 0 or 1 arguments."))))
 
 (defun over-all-args (kw/f)
   (lexical-let ((kw/f kw/f))
@@ -369,8 +385,6 @@
 							  alist)))
 		  method
 		  default-method))
-
-(isa-dispatch-memo :karl-pilkington (eval (mk-dispatch-table-name 'report)) nil nil)
 
 (dont-do
 										;example

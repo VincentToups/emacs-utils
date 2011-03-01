@@ -2,6 +2,9 @@
 (require 'macro-utils)
 (require 'cl)
 
+(defvar *stack* nil "Should always be nil, defined so the compiler shuts up about it.")
+(defvar *retain-stack* nil "Should always be nil, defined so the compiler shuts up about it.")
+
 (defun stack-atomp (item)
   "Detects whether an item is a stack atom."
   (or (numberp item)
@@ -89,7 +92,7 @@
 		 (sym (intern (join (cdr parts) ">")))
 		 (list-sym (gensym "npop-"))
 		 (temp-syms (if (numberp n) (gen-temp-syms n) nil)))
-	(print n)
+
 	(cond ((and (symbolp n) (eq n 'n))
 		   `(let ((,list-sym (pop-n (pop *stack*) *stack*)))
 			  (apply #',sym (reverse ,list-sym))))
@@ -315,6 +318,11 @@
 	  (push-stack (pop *retain-stack*))
 	(error "stack: r> requires at least one item on the retain stack.")))
 
+(defstackword push-list 
+  (let ((list (pop-stack)))
+	(loop for el in list do
+		  (push-stack el))))
+
 (defstackword keep
   (|||- over '(call) dip))
 
@@ -408,9 +416,16 @@
 							(pop-stack)
 						  (if (= 0 (length *stack*)) (error (format "stack: Couldn't find the end of the stack-word: %s" name)))))))
 	(pop-stack)
-	(eval `(defstackword ,name (|||- ,@body)))
-	(eval `(byte-compile ',(internf "stack-%s-" name)))
+	;; (eval `(defstackword ,name (|||- ,@body)))
+	;; (eval `(byte-compile ',(internf "stack-%s-" name)))
+	(push-stack '1>eval)
+	(push-stack `(quote (byte-compile ',(internf "stack-%s-" name))))
+	(push-stack '1>eval)
+	(push-stack `(quote (defstackword ,name (|||- ,@body))))
 	))
+
+
+
 
 (defmacro assert-stack-predicates (predicates word-name)
   "Takes a list of PREDICATES and a WORD-NAME for error message generation, and checks each item on the stack in the same order as predicates.  Generate an error on failure."
@@ -510,5 +525,23 @@
   (let ((arg-list (pop *stack*))
 		(fun (pop *stack*)))
 	(push (apply fun arg-list) *stack*)))
+
+(defmacro fn1||| (&rest rest)
+  (with-gensyms (lambda1-|||arg) 
+				`(lambda (,lambda1-|||arg) (||| lisp-val: ,lambda1-|||arg ,@rest))))
+
+(defmacro fn2||| (&rest rest)
+  (with-gensyms (a1 a2) 
+				`(lambda (,a1 ,a2) (||| lisp-val: ,a1 lisp-val: ,a2 ,@rest))))
+
+(defmacro fn3||| (&rest rest)
+  (with-gensyms (a1 a2 a3) 
+				`(lambda (,a1 ,a2 ,a3) (||| lisp-val: ,a1 lisp-val: ,a2 lisp-val: ,a3 ,@rest))))
+
+(defmacro fn*||| (&rest rest)
+  (with-gensyms (args) 
+				`(lambda (&rest ,args) (||| lisp-val: ,args push-list ,@rest))))
+
+
 
 (provide 'with-stack)
