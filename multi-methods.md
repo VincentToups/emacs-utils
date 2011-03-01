@@ -14,7 +14,7 @@ effort towards this).
 
 Today's project, based on Clojure's Multimethod system, is somewhat
 different.  The same concerns which make multimethods make sense for
-clojure make it a pretty good match for emacs lisp to (at least to my
+clojure make it a pretty good match for emacs lisp too (at least to my
 untutored eye).  Clojure lives in the Java ecosystem, and so depends
 on and interacts with Java's object model.  Yet its semantically
 somewhat different than Java, and it isn't itself object oriented.

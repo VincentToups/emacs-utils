@@ -75,7 +75,8 @@ Examples Are In Order
 ---------------------
 
 Here is an example of `recur-let`
-
+    
+    (require 'recur)
     (recur-let ((x 0))
       (if (< x 10) (recur (+ x 1)) x))
 
