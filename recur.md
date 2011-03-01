@@ -101,9 +101,9 @@ this is a very early version, I think the library is stable enough to
 use for real things.
 
 Most of the complexity here was not even related to the implementation
-of recursion itself, but with parsing lambda-lists, which emacs seems
-to have no native functions.  I am sure I could have used some piece
-of `cl.el` code, but a cursory search didn't reveal anything.
+of recursion itself, but with parsing lambda-lists, for which emacs
+seems to have no native functions.  I am sure I could have used some
+piece of `cl.el` code, but a cursory search didn't reveal anything.
 
 Most of the code is commented.  I hope someone out there finds this
 useful.  If you are interested in code-walking macros, this might be a
