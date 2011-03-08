@@ -936,9 +936,21 @@ optional OR-VAL if the key is not in the alist."
 					 (lambda (xxx) (cons value xxx)))))
 
 (defun alist-add-to-set (alst key value)
+  "Adds the VALUE to the set held at KEY in ALST."
   (alist-conjugate alst key
 				   (lexical-let ((value value))
 					 (lambda (xxx) (if (not ($ value in xxx)) (cons value xxx) xxx)))))
+
+(defun alist-remove-from-set (alst key value)
+  "Removes the VALUE to the set held at KEY in ALST."
+  (alist-conjugate alst key
+				   (lexical-let ((value value))
+					 (lambda (xxx) 
+					   (filter 
+						(lambda (item)
+						  (not (equal item value)))
+						xxx)))))
+
 
 (defun dissoc (alist &rest keys)
   "Returns a new ALIST without KEYS."

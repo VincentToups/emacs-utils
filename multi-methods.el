@@ -6,6 +6,9 @@
 
 (defvar *hierarchy-weak-table* (make-hash-table :test 'eql :weakness t) "Weak table for keeping track of hierarchies.")
 
+(defvar *multi-method-heirarchy* (alist>> :down nil
+										  :up nil
+										  :resolutions nil) "The default multimethod hierarchy used for isa? dispatch.")
 
 (defun make-hierarchy ()
   "Create a hierarchy for multi-method dispatch."
@@ -113,6 +116,15 @@
 			 ,@body))
 	 ',name))
 
+(defmacro* undefunmethod (name value)
+  "Undefine the method for the multimethod NAME and dispatch value VALUE."
+  (let ((table-name (mk-dispatch-table-name name)))
+	`(let ((*multi-method-heirarchy* ,(mk-dispatch-hierarchy-name name)))
+	   (clear-dispatch-cache)
+	   (setq ,table-name 
+			 (dissoc-equal ,table-name ,value)))))
+
+
 (defmacro* defunmethod (name value arglist &body body)
   "Define a method using DEFUN syntax for the dispatch value VALUE."
   (let ((g (gensym))
@@ -129,7 +141,7 @@
   "Indicate that the NAMEd multimethod should prefer PREF-VAL over NOT-PREF-VAL when dispatching ambiguous inputs."
   (let ((subtbl (alist *preferred-dispatch-table* name)))
 	(alist! subtbl (vector pref-val not-pref-val) pref-val)
-	(alist! subtbl (vector not-pref-val pref-val) prev-val)
+	(alist! subtbl (vector not-pref-val pref-val) pref-val)
 	(setf (alist *preferred-dispatch-table* name) subtbl)))
 
 (defmacro prefer-method (name pref-val not-pref-val)
@@ -139,9 +151,7 @@
 
 
 
-(defvar *multi-method-heirarchy* (alist>> :down nil
-										  :up nil
-										  :resolutions nil) "The default multimethod hierarchy used for isa? dispatch.")
+
 
 (defun clear-mm-heirarchy ()
   "Clear the hierarchy in the dynamic scope. "
@@ -162,10 +172,22 @@
 	(setf (alist *multi-method-heirarchy* :up) (alist-add-to-set parents child parent)))
   *multi-method-heirarchy*)
 
+(defun remove-parent-relation (child parent)
+  "Add a PARENT CHILD relationship to the hierarchy in the dynamic scope."
+  (let ((parents (alist *multi-method-heirarchy* :up)))
+	(setf (alist *multi-method-heirarchy* :up) (alist-remove-from-set parents child parent)))
+  *multi-method-heirarchy*)
+
 (defun add-child-relation (parent child)
   "Add a CHILD PARENT relationship to the hierarchy in the dynamic scope."
   (let ((children (alist *multi-method-heirarchy* :down)))
 	(setf (alist *multi-method-heirarchy* :down) (alist-add-to-set children parent child)))
+  *multi-method-heirarchy*)
+
+(defun remove-child-relation (parent child)
+  "Removes a CHILD PARENT relationship to the hierarchy in the dynamic scope."
+  (let ((children (alist *multi-method-heirarchy* :down)))
+	(setf (alist *multi-method-heirarchy* :down) (alist-remove-from-set children parent child)))
   *multi-method-heirarchy*)
 
 (defun derive2 (parent child)
@@ -173,6 +195,11 @@
   (clear-dispatch-cache)
   (add-child-relation parent child)
   (add-parent-relation child parent))
+
+(defun underive2 (parent child)
+  (clear-dispatch-cache)
+  (remove-child-relation parent child)
+  (remove-parent-relation child parent))
 
 (defun derive (&rest args)
   "derive H PARENT CHILD establishes a parent-child relationship in H, a heirarchy.
@@ -182,6 +209,16 @@
 	((3) (let ((*multi-method-heirarchy* (car args)))
 		   (apply #'derive2 (cdr args))))
 	(t "Derive takes 2 or 3 arguments.  More or less were given.")))
+
+(defun underive (&rest args)
+  "derive H PARENT CHILD establishes a parent-child relationship in H, a heirarchy.
+   derive PARENT CHILD uses the default hierarchy."
+  (case (length args)
+	((2) (apply #'derive2 args))
+	((3) (let ((*multi-method-heirarchy* (car args)))
+		   (apply #'derive2 (cdr args))))
+	(t "Derive takes 2 or 3 arguments.  More or less were given.")))
+
 
 (defun* derives-from (child parent &optional (h *multi-method-heirarchy*))
   (let ((*multi-method-heirarchy* h))
@@ -236,7 +273,7 @@
   "Get the multimethod of kind NAME that is the nearest match for the DISPATCH-VALUE."
   (let* ((method-table-name (mk-dispatch-table-name name))
 		 (method-table (eval method-table-name)))
-	(isa-dispatch dispatch-value method-table (make-resolve-by-table name))))
+	(isa-dispatch dispatch-value method-table (make-resolve-by-table method-table name))))
 
 (defun get-method-funcall (name dispatch-value &rest args)
   "Get the method associated with NAME and DISPATCH-VALUE and call it on ARGS."
@@ -299,8 +336,6 @@
 				 0))
 			 list-of))))
 
-
-
 (defun isa? (o1 o2)
   "ISA? test for equality using the default hierarchy.  Child ISA? Parent but not vice versa.  Isa? returns a number representing the distance to the nearest ancestor that matches.  For vectors of objects, these distances are summed.  If nil, o1 is not an o2."
   (case (count-equilength-vectors (list o1 o2))
@@ -335,19 +370,19 @@
 			(alist! *multi-method-heirarchy* ::::dispatch-cache cache)
 			cache)))
 
-(defun clear-dispatch-cache-raw ()
-  "Clear the dispatch cache for the hierarchy in the dynamic scope."
-  (alist! *multi-method-heirarchy* ::::dispatch-cache nil)
-  t)
+;; (defun clear-dispatch-cache-raw ()
+;;   "Clear the dispatch cache for the hierarchy in the dynamic scope."
+;;   (alist! *multi-method-heirarchy* ::::dispatch-cache nil)
+;;   t)
 
-(defun clear-dispatch-cache (&rest args)
-  "Retrieve the cache of dispatches for the currently scoped hierarchy, or for one passed in."
-  (case (length args)
-	((0) (clear-dispatch-cache-raw))
-	((1) (let ((*multi-method-heirarchy* (car args)))
-		   (clear-dispatch-cache-raw)))
-	(otherwise 
-	 (error "clear-dispatch-cache: Takes either 0 or 1 arguments."))))
+;; (defun clear-dispatch-cache (&rest args)
+;;   "Retrieve the cache of dispatches for the currently scoped hierarchy, or for one passed in."
+;;   (case (length args)
+;; 	((0) (clear-dispatch-cache-raw))
+;; 	((1) (let ((*multi-method-heirarchy* (car args)))
+;; 		   (clear-dispatch-cache-raw)))
+;; 	(otherwise 
+;; 	 (error "clear-dispatch-cache: Takes either 0 or 1 arguments."))))
 
 (defun get-dispatch-cache (&rest args)
   "Retrieve the cache of dispatches for the currently scoped hierarchy, or for one passed in."

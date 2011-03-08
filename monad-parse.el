@@ -30,6 +30,7 @@
   ((data :accessor string-of :initarg :string)
    (ix   :accessor index-of  :initarg :index :initform 0)))
 
+
 (defmethod input-empty? ((input <parser-input-string>))
   (= (length (string-of input)) (index-of input)))
 (defmethod input-empty-p ((input <parser-input-string>))
@@ -42,6 +43,23 @@
   (make-instance '<parser-input-string> :string 
 				 (string-of input)
 				 :index (+ 1 (index-of input))))
+
+(defclass <parser-input-sequence> ()
+  ((data :accessor seq-of :initarg :seq)
+   (ix   :accessor index-of :initarg :index :initform 0)))
+
+(defmethod input-empty? ((input <parser-input-sequence>))
+  (= (length (seq-of input)) (index-of input)))
+(defmethod input-empty-p ((input <parser-input-sequence>))
+  (= (length (seq-of input)) (index-of input)))
+(defmethod input-first ((input <parser-input-sequence>))
+  (elt (seq-of input) (index-of input)))
+(defmethod input-rest ((input <parser-input-sequence>))
+  (make-instance '<parser-input-sequence> :seq 
+				 (seq-of input)
+				 :index (+ 1 (index-of input))))
+
+
 
 (defclass <parser-input-buffer> () 
   ((buffer :accessor buffer-of :initarg :buffer)
@@ -74,6 +92,10 @@
 (defun input->string (input)
   (if input (input-as-string input) nil))  
 
+(defmethod input-as-list ((input <parser-input-sequence>))
+  (elts (seq-of input)
+		(range (index-of input)
+			   (length (seq-of input)))))
 
 (defun buffer->parser-input (buffer-or-name)
   (make-instance '<parser-input-buffer>
@@ -91,6 +113,10 @@
 (defun string->parser-input (str)
   (make-instance '<parser-input-string>
 				 :string str))
+
+(defun sequence->parser-input (seq)
+  (make-instance '<parser-input-sequence>
+				 :seq (coerce seq 'vector)))
 
 (defun parser-fail ()
   (lambda (input) nil))
@@ -156,12 +182,13 @@
 
 (defun ->in (x)
   (cond 
-   ((bufferp (get-buffer x))
+   ((and (stringp x) (bufferp (get-buffer x)))
 	(buffer->parser-input x))
    ((stringp x)
 	(string->parser-input x))
+   ((sequencep x)
+	(sequence->parser-input x))
    (t (error "Can't convert %s into a parser input." x))))
-
 
 (lexical-let ((lowers (coerce "abcdefghijklmnopqrztuvwxyz" 'list))
 			  (uppers (coerce "ABCDEFGHIJKLMNOPQRZTUVWXYZ" 'list)))
@@ -264,6 +291,9 @@
 
 (lex-defun parser-maybe (parser)
 		   (=or parser (parser-return nil)))
+(lex-defun =maybe (parser)
+		   (=or parser (parser-return nil)))
+
 
 (defun letters ()
   (=or (=let* [x (letter)
@@ -347,6 +377,9 @@
 
 (defun parse-string (parser string)
   (car (car (funcall parser (->in string)))))
+
+(defun parse-sequence (parser sequence)
+  (car (car (funcall parser (->in sequence)))))
 
 (defun parse-string-det (parser string)
   (let* ((pr (funcall parser (->in string)))

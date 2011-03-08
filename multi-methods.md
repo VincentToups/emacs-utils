@@ -160,9 +160,13 @@ Conclusion
 
 I think multimethods are probably useful and well suited to emacs
 lisp.  They are lightweight, powerful and coexist well with the emacs
-ecosystem.  I'm going to add dispatch lookup caching eventually.  This
-should improve performance on method dispatch even for very deep or
-convoluted hierarchies.  This is possible because any call to `derive`
-or `prefer-method` is sufficient notice to clear the cache of dispatch
-values.  After a brief period where dispatches are recached, this
-should make method dispatch a constant time operation.
+ecosystem.
+
+Notes/Updates:
+--------------
+
+I added method dispatch caching, so method look up should be constant
+time now, after dispatch has been calculated a few times.  I also
+added a bunch of forms to underive and undefmethod so that you can
+easily develop systems without nuking your whole hierarchy or method
+system.  
