@@ -127,6 +127,10 @@
 			 (lambda (&rest args)
 			   (apply #'mapcar (cons f args))))
 
+  (lex-defun decorate-all (f dec)
+			 (lambda (&rest args)
+			   (apply f (mapcar dec args))))
+
   (lex-defun decorate-n (f index trans)
 			 (lambda (&rest args)
 			   (let* ((el (elt args index))

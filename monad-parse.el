@@ -3,11 +3,12 @@
 (require 'eieio)
 (require 'cl)
 (require 'defn)
+(require 'functional)
 
-(defn parser-bind [parser fun]
-  (fn [input]
-	  (loop for (value . input) in (funcall parser input) 
-			append (funcall (funcall fun value) input))))
+;; (defn parser-bind [parser fun]
+;;   (fn [input]
+;; 	  (loop for (value . input) in (funcall parser input) 
+;; 			append (funcall (funcall fun value) input))))
 
 (defun parser-bind (parser fun)
   (lexical-let ((parser parser)
@@ -17,9 +18,15 @@
 		(loop for (value . input) in (funcall parser input) 
 			  append (funcall (funcall fun value) input))))))
 
-(defn parser-return [val]
-  (fn [input]
-	  (list (cons val input))))
+;; (defn parser-return [val]
+;;   (fn [input]
+;; 	  (list (cons val input))))
+
+(defun parser-return (val)
+  (lexical-let ((val val))
+	(lambda (input) 
+	  (lexical-let ((input input))
+		(list (cons val input))))))
 
 (setq monad-parse 
 	  (tbl! 
@@ -208,9 +215,13 @@
 (defun =digit-char ()
   (=satisfies #'digit-char?))
 
+;; (defun =digit-char->string ()
+;;   (=let* [c (=digit-char)]
+;; 		 (if c (coerce (list c) 'string) nil)))
 (defun =digit-char->string ()
-  (=let* [c (=digit-char)]
-		 (if c (coerce (list c) 'string) nil)))
+  (=simple-let* ((c (=digit-char)))
+				(if c (coerce (list c) 'string) nil)))
+
 
 (defun =digit-char->number ()
   (=let* [c (=digit-char)]
@@ -267,11 +278,20 @@
 (defmacro* =let* (forms &body body)
   `(domonad monad-parse ,forms ,@body))
 
+(defmacro* =simple-let* (bindings &body body)
+  (if bindings 
+	  (let ((symbol (car (car bindings))))
+		`(parser-bind ,@(cdr (car bindings))
+					  (lex-lambda (,symbol) 
+								  (=simple-let* ,(cdr bindings)
+												 ,@body))))
+	`(parser-return (progn ,@body))))
+
 (lex-defun =and2 (p1 p2)
-		   (=let* [r1 p1
-					  r2 p2]
-				  (if (and r1 r2)
-					  r1)))
+		   (lex-lambda (input)
+					   (and (funcall p1 input)
+							(funcall p2 input))))
+
 (lex-defun =and (&rest ps)
 		   (reduce #'=and2 ps))
 
@@ -389,4 +409,11 @@
 			(not rest)) nil
 	  (list result (input->string rest)))))
 
+(defun =lit-sym (sym)
+  (=satisfies (f-and 
+			   #'symbolp 
+			   (par #'eq sym))))
+
+
 (provide 'monad-parse)
+

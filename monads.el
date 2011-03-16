@@ -58,6 +58,12 @@
 			   (funcall mv (fn [v]
 							   (funcall (mf v) c)))))))
 
+(defn call-bind [[:: bind :m-bind] & args]
+  (apply bind args))
+
+(defn call-return [[:: return :m-return] & args]
+  (apply return args))
+
 (defn fetch-state []
   (fn [state]
 	  (list state state)))
@@ -176,7 +182,7 @@
 		 (dlet [[form val & rest-forms] forms]
 		   `(funcall ,m-bind-sym 
 					 ,val
-					 (fn ,(vector form)
+					 (fnc ,(vector form)
 						 (domonad-inner 
 						  ,m-bind-sym 
 						  ,m-return-sym 
@@ -207,7 +213,7 @@
 		 (funcall ,m-bind-sym
 										;(funcall ,m-return-sym ,val)
 				  ,val
-				  (fn ,(vector form)
+				  (fnc ,(vector form)
 					  (domonad-inner 
 					   ,m-bind-sym 
 					   ,m-return-sym 
