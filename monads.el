@@ -210,6 +210,8 @@
 			  (tbl ,monad-sym :m-bind)
 			  ,m-return-sym
 			  (tbl ,monad-sym :m-return)]
+		 (labels ((m-bind (v f) (funcall ,m-bind-sym v f))
+				  (m-return (x) (funcall ,m-return-sym x)))
 		 (funcall ,m-bind-sym
 										;(funcall ,m-return-sym ,val)
 				  ,val
@@ -218,7 +220,7 @@
 					   ,m-bind-sym 
 					   ,m-return-sym 
 					   ,rest-forms 
-					   ,@body))))))))
+					   ,@body)))))))))
 
 
 ;; (defn Just [x] 
