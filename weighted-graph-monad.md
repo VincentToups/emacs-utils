@@ -37,8 +37,8 @@ the tutorial can be directed to vincent dot toups at gmail's domain.
 I'd be really delighted if someone more knowledgable could shed light
 on the graph monad.
 
-The Monad
-=========
+Monads
+------
 
 A monad is defined by at least two functions.  Bind takes values out
 of a monadic value, and applies a function to those values.  We don't
