@@ -112,7 +112,7 @@
 		  (|||- {qtn} call))))
 
 (defstackword loop-until-char 
-  (|||- '(char-at-point->string string=) curry loop-until))
+  (|||- '(char-at-point->string 2>string=) curry loop-until))
 
 (defstackword forward 
   (forward-char))
@@ -232,7 +232,7 @@
 (defstackword kill (|||- 1>move-kill drop))
 
 (setq micro-stack-map 
-	  (alist>> 
+	  (tbl! 
 	   'm 'move ; generic movement.  pops an item from the stack, then moves appropriately 
 	   'k 'kill ; generic move-and-kil, pops and item of the stack, marks, moves, and kill-region's
 	   'l 'line ; specify that a number indicates a number of lines
@@ -286,7 +286,7 @@
   (loop for el in code append
 		(cond 
 		 ((symbolp el)
-		  (let ((trans (alist micro-stack-map el)))
+		  (let ((trans (tbl micro-stack-map el)))
 			(if trans (list trans) (error "Unknown microstack word."))))
 		 ((listp el)
 		  (list 'lisp-val: `(quote ,el)))
@@ -304,5 +304,4 @@
   (interactive "s")
   (let* ((code (parse-microstack str))
 		 (code (translate-microstack code)))
-	(print code)
 	(do-microstack-parsed-translated code)))

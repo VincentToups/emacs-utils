@@ -1,6 +1,7 @@
 (require 'utils)
 (require 'with-stack)
 (require 'defn)
+(require 'recur)
 
 
 (defun file-location (filestr)
@@ -17,5 +18,15 @@
  (file-name "/this/is/a/test/press")
  (file-extension "/this/is/a/test/press.txt")
 )
+
+(nthcdr 3 '(a b c d))
+
+(recur-defun* bunch-by (n input &optional (output nil))
+  (if input
+	  (let ((bunch (elts input (range n)))
+			(rest (nthcdr n input)))
+		(recur n rest (cons bunch output)))
+	(reverse output)))
+
 
 (provide 'advanced-utils)

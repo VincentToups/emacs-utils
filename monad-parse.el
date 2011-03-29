@@ -396,6 +396,7 @@
 				  (cons x y)))
 
 (defun parse-string (parser string)
+  (print (funcall parser (->in string)))
   (car (car (funcall parser (->in string)))))
 
 (defun parse-sequence (parser sequence)
@@ -407,7 +408,7 @@
 		 (rest (input->string (cdr (car pr)))))
 	(if (or (not result)
 			(not rest)) nil
-	  (list result (input->string rest)))))
+	  (list result rest))))
 
 (defun =lit-sym (sym)
   (=satisfies (f-and 

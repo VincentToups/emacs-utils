@@ -34,7 +34,7 @@
 (defmacro* defstackword (name &body body)
   "Define a new stack word and insert it into the stack word dictionary."
   (let ((actual-name (internf "stack-%s-" name)))
-	`(progn 
+	`(eval-when-compile  
 	   (defun ,actual-name () ,@body)
 	   (tbl! *stack-words* ',name (list ',actual-name nil))
 	   (byte-compile ',actual-name))))
@@ -42,7 +42,7 @@
 (defmacro* defstackword-immediate (name &body body)
   "Define a new stack word and insert it into the stack word dictionary, and mark it as immediate."
   (let ((actual-name (internf "stack-%s-" name)))
-	`(progn 
+	`(eval-when-compile 
 	   (defun ,actual-name () ,@body)
 	   (tbl! *stack-words* ',name (list ',actual-name t)) 
 	   (byte-compile ',actual-name)

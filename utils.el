@@ -655,7 +655,7 @@
   "Simple infix macro.  ($ a < b) -> (< a b)."
   `(,f ,first ,@rest))
 
-(defun first (l) "Return first element of l." (car l))
+(defun first (l) "Return first element of l." (elt l 0))
 
 (defun shell-to (dir)
   "Send the shell to the directory DIR.  List newest files there."
@@ -923,11 +923,31 @@
 	(alist>> root (car keys)
 			 (alist>>-in (alist root (car keys)) (cdr keys) val))))
 
+(defun alist>>-in-conjugate (root keys fun)
+  "Replaces a deeply nested alist value with the value (FUN VAL)"
+  (let ((val (alist-in root keys)))
+	(alist>>-in root keys (funcall fun val))))
+
 (defun alist-conjugate (alst key fun &optional or-val)
   "Returns a new alist where the value of key is now (fun (alist alst key)).  Accepts an
 optional OR-VAL if the key is not in the alist."
   (let ((val (alist-or alst key or-val)))
 	(alist>> alst key (funcall fun val))))
+
+(defun* pred-alist (pred alist key &optional (or-val nil))
+  "Access an alist with PRED for key equality."
+  (let-if val (car (car (member-if 
+						 (lexical-let ((pred pred))
+						   (lambda (item) 
+							 (funcall pred item key))) alist)))
+		  val
+		  or-val))
+
+(defun* pred-alist-conjugate (pred alist key fun &optional (or-val nil))
+  "Conjugate a value in an alist with PRED as the key equality test."
+  (let ((item (pred-alist pred alist key or-val)))
+	(pred-alist>> pred alist key 
+				  (funcall fun item))))
 
 (defun alist-cons (alst key value)
   "Cons the element VALUE onto the list at KEY in ALST.  If key is not there, obviously this creates a list there."
@@ -935,21 +955,43 @@ optional OR-VAL if the key is not in the alist."
 				   (lexical-let ((value value))
 					 (lambda (xxx) (cons value xxx)))))
 
-(defun alist-add-to-set (alst key value)
-  "Adds the VALUE to the set held at KEY in ALST."
+(defun* alist-add-to-set (alst key value &optional (pred #'equal))
+  "Adds the VALUE to the set held at KEY in ALST.  Optionally specify PRED
+to control set equality.  Defaults to EQUAL."
   (alist-conjugate alst key
 				   (lexical-let ((value value))
-					 (lambda (xxx) (if (not ($ value in xxx)) (cons value xxx) xxx)))))
+					 (lambda (xxx) (if (not ($ value in xxx pred)) (cons value xxx) xxx)))))
 
-(defun alist-remove-from-set (alst key value)
-  "Removes the VALUE to the set held at KEY in ALST."
+(defun* alist-remove-from-set (alst key value &optional (pred #'equal))
+  "Removes the VALUE to the set held at KEY in ALST.  Optionalally specify
+PRED to control set equality.  Defaults to EQUAL."
   (alist-conjugate alst key
 				   (lexical-let ((value value))
 					 (lambda (xxx) 
 					   (filter 
 						(lambda (item)
-						  (not (equal item value)))
+						  (not (funcall pred item value)))
 						xxx)))))
+
+(defun pred-dissoc (pred alist &rest keys)
+  "Remove entries with key KEYS from the ALIST using the predicate PRED for key equality."
+  (filter 
+   (lexical-let ((pred pred))
+	 (lambda (alist-item)
+	   (not ($ (car alist-item) in keys pred))))
+   alist))
+
+(defun* pred-alist>> (pred &optional (alist :---alist-sentinal---) &rest kv-pairs)
+  "Create an ALIST or add to one the pairs KV-PAIRS using the key equality predicate PRED."
+  (if (listp alist) 
+	  (let* ((kv-pairs (unique (bunch-list kv-pairs) 
+							   (lexical-let ((pred pred))
+								 (lambda (a b)
+								   (funcall pred (car a) (car b))))))
+			 (keys (mapcar #'car kv-pairs))
+			 (alist (apply #'pred-dissoc pred alist keys)))
+		(append kv-pairs alist))
+	(apply #'pred-alist>> pred nil (cons alist kv-pairs))))
 
 
 (defun dissoc (alist &rest keys)
@@ -973,7 +1015,6 @@ optional OR-VAL if the key is not in the alist."
 				   element)))
 			(not ($ alist-el-key in keys #'equal)))
 		  collect element)))
-
 
 (defun* alist>> (&optional alist &rest rest)
   "Create or functionally modifies an ALIST.
@@ -1810,5 +1851,21 @@ which is the identity, by default."
 (defmacro db-print (form)
   "Print the form FORM and its VALUE."
   `(print (format "%S - %s" ',form ,form)))
+
+(defun second (s)
+  "return the second element of SEQ."
+  (elt s 1))
+
+(defun nil? (s)
+  "Alias for NOT."
+  (not s))
+
+(defmacro* example (&body body)
+  "Ignores the body, but you can go inside and execute the examples."
+  nil)
+
+(defun mapcat (f lst)
+  "Map F across LST and concatenate the results."
+  (loop for x in lst append (funcall f x)))
 
 (provide 'utils)

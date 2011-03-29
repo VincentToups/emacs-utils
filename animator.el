@@ -1,51 +1,36 @@
 (require 'utils)
 
-(setf *animator-funs* (alist>>))
 (setf *animator-color-stack* nil)
 
-
-(defmacro* with-animator (&body body)
-  `(labels ,(loop for info in *animator-funs* collect
-				  (let ((actual-name (car info))
-						(local-name (car (cadr  info)))
-						(arglist (cadr (cadr info)))
-						(argsym (gensym "animator-args-")))
-					`(,local-name (&rest ,argsym) (apply #',actual-name ,argsym))))
-	 ,@body))
-(defmacro* defanimatorfun (name arglist docstring &body body)
-  (let ((actual-name (internf "animator-%s" name)))
-	(setf *animator-funs* (alist>> *animator-funs*
-								   actual-name (list name arglist)))
-	`(defun ,actual-name ,arglist ,docstring (with-animator ,@body))))
 (defun start-animator-process ()
   (let ((sh (shell "*animator*")))
 	(comint-send-strings sh "animator")
 	(setq *animator* sh)))
 (start-animator-process)
 
-(defanimatorfun send (&rest strings)
+(defun animator-send (&rest strings)
   (apply #'comint-send-strings *animator* strings))
 
-(defanimatorfun flush ()
+(defun animator-flush ()
   (comint-send-strings *animator* "flush"))
-(defanimatorfun frame ()
+(defun animator-frame ()
   (comint-send-strings *animator* "frame"))
 
-(defanimatorfun color (cc)
+(defun animator-color (cc)
   (if (listp cc)
 	  (let* ((s (format "%s" cc))
 			 (n (length s)))
 		(animator-send (concat "color " (substring s 1 (- n 1)))))
 	(animator-send (format "color %s" cc))))
 
-(defanimatorfun push-color (cc)
+(defun animator-push-color (cc)
   (push cc *animator-color-stack*)
   (if (listp cc)
 	  (let* ((s (format "%s" cc))
 			 (n (length s)))
 		(animator-send (concat "color " (substring s 1 (- n 1)))))
 	(animator-send (format "color %s" cc))))
-(defanimatorfun pop-color ()
+(defun animator-pop-color ()
   (let ((clr (pop *animator-color-stack*))
 		(top (car *animator-color-stack*)))
 	(if top (animator-color top)
@@ -64,22 +49,22 @@
 (defmacro* with-flush/frame (&body body)
   `(progn (animator-frame) ,@body (animator-flush)))
 
-(defanimatorfun dot (x y)
+(defun animator-dot (x y)
   (comint-send-strings *animator*
 					   (format "dot %f %f" x y)))
 
-(defanimatorfun dots (pairs)
+(defun animator-dots (pairs)
   (loop for pair in pairs do
 		(apply #'animator-dot pair)))
 
-(defanimatorfun line (x1 y1 x2 y2)
+(defun animator-line (x1 y1 x2 y2)
   (animator-send (format "line %f %f %f %f" x1 y1 x2 y2)))
 
-(defanimatorfun disjoint-lines (&rest lines)
+(defun animator-disjoint-lines (&rest lines)
   (loop for line in lines do 
 		(apply animator-line line)))
 
-(defanimatorfun connected-lines (&rest args)
+(defun animator-connected-lines (&rest args)
   (let ((args (flatten args)))
 	(animator-send 
 	 (concat "lines "
@@ -87,7 +72,7 @@
 					""
 					args)))))
 
-(defanimatorfun poly (&rest args)
+(defun animator-poly (&rest args)
   (let ((args (flatten args)))
 	(animator-send 
 	 (concat "poly "
@@ -95,18 +80,79 @@
 					""
 					args)))))
 
-(defanimatorfun circle (x y r &optional verts)
+(defun animator-circle (x y r &optional verts)
   (let ((verts (if verts verts 25)))
 	(animator-send (format "circle %f %f %f %f" x y r verts))))
 
-(defanimatorfun filled-circle (x y r &optional verts)
+(defun animator-filled-circle (x y r &optional verts)
   (let ((verts (if verts verts 25)))
 	(animator-send (format "fillcircle %f %f %f %f" x y r verts))))
 
-(defanimatorfun text (x y text &optional alignment)
+(defun animator-text (x y text &optional alignment)
   (if alignment
 	  (animator-send (format "text %s %f %f \"%s\"" alignment x y text))
 	(animator-send (format "text %f %f \"%s\"" x y text))))
+
+(defun animator-dup ()
+  (animator-send "push"))
+
+(defun animator-pop ()
+  (animator-send "pop"))
+
+(defun animator-ident ()
+  (animator-send "ident"))
+
+(defun animator-shift (x y)
+  (animator-send (format "shift %f %f" x y)))
+
+(defun animator-rotate (degrees)
+  (animator-send (format "rotate %f" degrees)))
+
+(defun animator-scale (x &optional y)
+  (let ((y (if y y x)))
+	(animator-send (format "scale %f %f" x y))))
+
+(defun animator-viewport (left bottom w h)
+  (animator-send (format "viewport %f %f %f %f" left bottom w h)))
+
+(defun create-animator-format-string (name-string args)
+  (loop for i from 1 to (length args) do
+		(setq name-string (concat name-string " %f")))
+  name-string)
+
+(defmacro* def-numeric-animator-primitive (name &optional doc &rest arg-names)
+  (let ((interface-name (internf "animator-%s" name))
+		(name-string (format "%s" name))
+		(doc (if (stringp doc) doc nil))
+		(arg-names (if (stringp doc) arg-names
+					 (cons doc arg-names))))
+	`(defun ,interface-name ,arg-names ,doc
+	   (animator-send (format ,(create-animator-format-string name-string arg-names)
+					  ,@arg-names)))))
+
+(defmacro* def-numeric-animator-primitive-alt-name (interface-name name &optional doc &rest arg-names)
+  (let ((name-string (format "%s" name))
+		(doc (if (stringp doc) doc nil))
+		(arg-names (if (stringp doc) arg-names
+					 (cons doc arg-names))))
+	`(defun ,interface-name ,arg-names ,doc
+	   (animator-send (format ,(create-animator-format-string name-string arg-names)
+					  ,@arg-names)))))
+
+
+(def-numeric-animator-primitive thick "Set animator line thickness"
+  thickness)
+
+(def-numeric-animator-primitive alpha "Set animator transparency." alpha)
+
+(def-numeric-animator-primitive arrow "Draw an arrow pointing towards X2 Y2"
+  x1 y1 x2 x2)
+
+(def-numeric-animator-primitive-alt-name fill-rect fillrect "Fill an animator rectangle with the current color." x y w h)
+
+(def-numeric-animator-primitive rect "Fill an animator rectangle with the current color." x y w h)
+
+(with-flush/frame (animator-rect 0 0 .25 .25))
 
 
 
@@ -132,6 +178,5 @@
 		 (with-animator 
 		  (color "green"))
 		 )
-
 
 (provide 'animator)
