@@ -149,7 +149,7 @@ library).
 
 This body of double-dup is equivalent to the expression:
 
-   (seq-bind lst 
+    (seq-bind lst 
     (lambda (x)
       (seq-bind (dup x) 
         (lambda (y) 
