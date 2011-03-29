@@ -32,7 +32,10 @@ course, welcome to read the second part.  I think even if it is
 missing some grace and elegance, it is probably useful to see a monad
 built up from nothing, as it were.  However, bearing the above
 qualifications in mind, the links above will prove much more useful to
-you than this document.  
+you than this document.  Comments about the weighted graph monad or
+the tutorial can be directed to vincent dot toups at gmail's domain.
+I'd be really delighted if someone more knowledgable could shed light
+on the graph monad.
 
 The Monad
 =========
