@@ -426,3 +426,6 @@ kind of weird example.
                                   ; return the final connected population after one round of activity.
                         connected-pop)))
 
+If you `(require 'weighted-graph-monad)` you should be able to run
+this and get a graph out that reflects one possible pass through a
+swingers party in the 70's.
