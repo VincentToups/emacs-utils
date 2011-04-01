@@ -1868,4 +1868,9 @@ which is the identity, by default."
   "Map F across LST and concatenate the results."
   (loop for x in lst append (funcall f x)))
 
+(defmacro eval-when-compile-also (&rest rest)
+  "Indicate that the body should be evaluated at both compile and run time."
+  `(progn (eval-when-compile ,@rest)
+		  (progn ,@rest)))
+
 (provide 'utils)

@@ -197,8 +197,8 @@
 	(sequence->parser-input x))
    (t (error "Can't convert %s into a parser input." x))))
 
-(lexical-let ((lowers (coerce "abcdefghijklmnopqrztuvwxyz" 'list))
-			  (uppers (coerce "ABCDEFGHIJKLMNOPQRZTUVWXYZ" 'list)))
+(lexical-let ((lowers (coerce "abcdefghijklmnopqrsztuvwxyz" 'list))
+			  (uppers (coerce "ABCDEFGHIJKLMNOPQRSZTUVWXYZ" 'list)))
   (defun upper-case-char? (x)
 	(in x uppers))
   (defun lower-case-char? (x)
@@ -321,6 +321,9 @@
 			  (cons x xs))
 	   (parser-return nil)))
 
+(defun =letter ()
+  (letter))
+
 ;; (lex-defun zero-or-more (parser)
 ;; 		   (=or (=let* [x parser
 ;; 						  xs (zero-or-more parser)]
@@ -396,7 +399,6 @@
 				  (cons x y)))
 
 (defun parse-string (parser string)
-  (print (funcall parser (->in string)))
   (car (car (funcall parser (->in string)))))
 
 (defun parse-sequence (parser sequence)

@@ -5,6 +5,8 @@
 (defvar *stack* nil "Should always be nil, defined so the compiler shuts up about it.")
 (defvar *retain-stack* nil "Should always be nil, defined so the compiler shuts up about it.")
 
+
+
 (defun stack-atomp (item)
   "Detects whether an item is a stack atom."
   (or (numberp item)
@@ -34,7 +36,7 @@
 (defmacro* defstackword (name &body body)
   "Define a new stack word and insert it into the stack word dictionary."
   (let ((actual-name (internf "stack-%s-" name)))
-	`(eval-when-compile  
+	`(eval-when-compile-also  
 	   (defun ,actual-name () ,@body)
 	   (tbl! *stack-words* ',name (list ',actual-name nil))
 	   (byte-compile ',actual-name))))
@@ -42,7 +44,7 @@
 (defmacro* defstackword-immediate (name &body body)
   "Define a new stack word and insert it into the stack word dictionary, and mark it as immediate."
   (let ((actual-name (internf "stack-%s-" name)))
-	`(eval-when-compile 
+	`(eval-when-compile-also 
 	   (defun ,actual-name () ,@body)
 	   (tbl! *stack-words* ',name (list ',actual-name t)) 
 	   (byte-compile ',actual-name)

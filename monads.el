@@ -332,7 +332,31 @@ monadically, according to the current monad."
 (defun m-lift6 (f)
   (m-lift 6 f))
 
+(defun lift-left (f)
+  (lexical-let ((f f))
+	(lambda (left &rest rest)
+	  (domonad current-monad 
+			   [left left]
+			   (apply f left rest)))))
 
+(defun lift-right (f)
+  (lexical-let ((f f))
+	(lambda (&rest rest)
+	  (lexical-let* ((rrest (reverse rest))
+					 (right (car rrest))
+					 (rest (reverse (cdr rrest))))
+		(domonad current-monad 
+				 [right right]
+				 (apply f (suffix rest right)))))))
+
+(defun lift-nth (f n)
+  (lexical-let ((f f) (n n))
+	(lambda (&rest rest)
+	  (let ((nth-item (elt rest n)))
+		(domonad current-monad
+				 [nth-item nth-item]
+				 (setf (elt rest n) nth-item)
+				 (apply f rest))))))
 
 (provide 'monads)
 
