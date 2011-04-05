@@ -544,6 +544,12 @@
   (with-gensyms (args) 
 				`(lambda (&rest ,args) (||| lisp-val: ,args push-list ,@rest))))
 
+(defmacro* word: (&body body)
+  `(||| word: ,@body end:))
+
+(defun |||-region (st en)
+  (interactive "r")
+  (eval `(||| ,@(read (concat "(" (buffer-substring st en) ")")))))
 
 
 (provide 'with-stack)

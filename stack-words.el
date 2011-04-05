@@ -4,6 +4,8 @@
 (require 'functional)
 (require 'cl)
 
+(defun prefix (x lst) (cons x lst))
+
 (||| word: head&tail '(1>car) '(1>cdr) bi end:)
 (||| word: tail&head head&tail swap end:)
 (||| word: map-get-next-item rot tail&head '(-rot) dip end:)
@@ -14,6 +16,11 @@
 	 end:)
 (||| word: foldl ;( list init qtn -- result )
 	 swapd leach end:)
+(||| word: reduce ;( list qtn -- result )
+     '(tail&head) dip foldl end:)
+(||| word: sum ;( list -- sum )
+     '(+) reduce end:)
+ 
 (defstackword current-continuation 
   (push *stack* *stack*))
 
@@ -73,27 +80,41 @@
   ([begin end lst]
    (split-by-match begin end lst 0 nil)))
 
-(defstackword-immediate {/
-  (let ((result (split-by-match '{/ '/} (cons '{/ *stack*))))
-	(if (None? result) (error "Unmatched {/ during immediate word {/")
-	  (let-seq (quot rest) (MaybeVal result)
-			   (print quot)
-			   (print rest)
-			   (setq *stack* rest)
-			   (print *stack*)
-			   (push `(quote ,quot) *stack*)
-			   (print *stack*)))))
+(defstackword split-by-match 
+  (let ((end (pop-stack))
+		(begin (pop-stack)))
+	(push-stack (split-by-match begin end (pop-stack)))))
 
-(defstackword list-until 
-  (let ((sentinal (pop *stack*)))
-	(loop with output = nil 
-		  while (not (eq (car *stack*) sentinal))
-		  do
-		  (if *stack* (setq output (cons (pop *stack*) output))
-			(error "Couldn't find sentinal."))
-		  finally 
-		   (pop *stack*)
-		   (push output *stack*))))
+	 (defstackword-immediate {/
+	   (let ((result (split-by-match '{/ '/} (cons '{/ *stack*))))
+		 (if (None? result) (error "Unmatched {/ during immediate word {/")
+		   (let-seq (quot rest) (MaybeVal result)
+					(db-print quot)
+					(db-print rest)
+					(setq *stack* rest)
+					(print *stack*)
+					(push `(quote ,quot) *stack*)
+					(print *stack*)))))
+
+	 (defstackword-immediate {-
+	   (let ((result (split-by-match '{- '-} (cons '{- *stack*))))
+		 (if (None? result) (error "Unmatched {- during immediate word {-")
+		   (let-seq (contents future) (MaybeVal result)
+					(let ((head (car contents))
+						  (tail (cdr contents)))
+					  (setq *stack* (append (suffix tail head) future)))))))
+	 
+
+	 (defstackword list-until  
+	   (let ((sentinal (pop *stack*)))
+		 (loop with output = nil 
+			   while (not (eq (car *stack*) sentinal))
+			   do
+			   (if *stack* (setq output (cons (pop *stack*) output))
+				 (error "Couldn't find sentinal."))
+			   finally 
+			   (pop *stack*)
+			   (push output *stack*))))
 
 (defstackword-immediate {{ 
   (let ((result (split-by-match '{{ '}} (cons '{{ *stack*)))
@@ -146,4 +167,12 @@
 (defstackword emacs-apply
   (|||- swap 2>apply))
 
+(defstackword stack-depth 
+  (push-stack (length *stack*)))
+
+(defstackword drop-all 
+  (setq *stack* nil))
+
+(bivalent-stack-words append suffix prefix)
+(univalent-stack-word listp)
 (provide 'stack-words)

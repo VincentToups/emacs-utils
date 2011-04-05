@@ -57,7 +57,7 @@
 				   `(
 					 ,(simple-expand-recur condition symbols nil nil)
 					 ,@(cdr (simple-expand-recur
-							 `(progn ,@body) symbols in-tail nil)))))))
+							 `(progn ,@body) symbols in-tail loop-sentinal)))))))
 
 (defun simple-expand-recur-funcall (code symbols in-tail loop-sentinal)
   "Handle recursion expansion for FUNCALL forms.  The de-factor default when the head of a list is not recognized."
@@ -222,6 +222,7 @@ macro expansion."
 (defmacro* recur-defun* (name arglist &body body)
   "Define a recur-enabled function.  It can call itself with a RECUR form without growing the stack.
 Otherwise conforms to a Common-Lisp style defun form."
+  (declare (indent defun))
   (let* ((doc (if (stringp (car body)) (car body) ""))
 		 (body (if (stringp (car body)) (cdr body) body)))
 	(with-gensyms 

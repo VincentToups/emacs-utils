@@ -1,6 +1,7 @@
 (require 'cl)
 (require 'utils)
 (require 'defn)
+(require 'recur)
 
 ;; (setf monad-maybe
 ;; 	  (tbl!
@@ -36,6 +37,18 @@
 			 (if (eq (car v) 'None) v
 			   (funcall f (MaybeVal v)))))
   "The MAYBE monad.  See Just, None, None?, and MaybeVal.")
+
+(defun m-Error (arg)
+  `(Error ,arg))
+
+(defvar monad-error 
+  (tbl! 
+   :m-return (lambda (x) (Just x))
+   :m-bind (lambda (v f) 
+			 (if (eq (car v) 'Error) v
+			   (funcall f (MaybeVal v))))))
+
+
 
 (defvar monad-id 
   (tbl! :m-return (lambda (x) x)
@@ -136,7 +149,7 @@ monad, but only admits unique results under PREDICATE.
   (lexical-let ((lpred predicate))
 	(tbl! 
 	 :m-zero (list)
- 	 :m-return (lambda (x) (list x))
+	 :m-return (lambda (x) (list x))
 	 :m-bind (lambda (v f) (unique (apply #'append (mapcar f v)) lpred)))))
 
 (defun m-m-bind (monad v f)
@@ -187,12 +200,13 @@ monad, but only admits unique results under PREDICATE.
 
 (defmacro* domonad-helper* (forms &body body)
   (cond 
-   ((= 0 (length forms)) `(m-return (progn ,@body)))
+   ((= 0 (length forms))  `(progn ,@body))
    (t 
 	(dlet_ [[form val & rest-forms] forms]
 	  `(m-bind ,val (fn ,(vector form) (domonad-helper* ,rest-forms ,@body)))))))
 
 (defmacro* domonad* (monad forms &body body)
+  "Like DOMONAD but does not warp the BODY of the macro in an M-RETURN."
   (cond 
    ((oddp (length forms)) (error "domonad requires an even number of forms"))
    (t
@@ -314,6 +328,27 @@ monadically, according to the current monad."
 							 ,(gen-m-lift-binding arg-names)
 							 (funcall ,fsym ,@arg-names)))))))
 
+(defmacro m-lift-into (n f monad)
+  "Macro - LIFT F (with N args) into the current monad."
+  (with-gensyms 
+   (fsym monadsym)
+   (let ((arg-names 
+		  (loop for i from 1 to n collect
+				(gensymf "arg%d" i))))
+	 `(lexical-let ((,fsym ,f)
+					(,monadsym ,monad))
+		(lex-lambda ,arg-names
+					(domonad ,monadsym
+							 ,(gen-m-lift-binding arg-names)
+							 (funcall ,fsym ,@arg-names)))))))
+
+(defun m-lift-into1 (f monad) (m-lift-into 1 f monad))
+(defun m-lift-into2 (f monad) (m-lift-into 2 f monad))
+(defun m-lift-into3 (f monad) (m-lift-into 3 f monad))
+(defun m-lift-into4 (f monad) (m-lift-into 4 f monad))
+(defun m-lift-into5 (f monad) (m-lift-into 5 f monad))
+(defun m-lift-into6 (f monad) (m-lift-into 6 f monad))
+
 (defun m-lift1 (f)
   (m-lift 1 f))
 
@@ -332,31 +367,34 @@ monadically, according to the current monad."
 (defun m-lift6 (f)
   (m-lift 6 f))
 
-(defun lift-left (f)
-  (lexical-let ((f f))
-	(lambda (left &rest rest)
-	  (domonad current-monad 
-			   [left left]
-			   (apply f left rest)))))
+;; (defun lift-left (f)
+;;   (lexical-let ((f f))
+;; 	(lambda (left &rest rest)
+;; 	  (domonad current-monad 
+;; 			   [left left]
+;; 			   (apply f left rest)))))
 
-(defun lift-right (f)
-  (lexical-let ((f f))
-	(lambda (&rest rest)
-	  (lexical-let* ((rrest (reverse rest))
-					 (right (car rrest))
-					 (rest (reverse (cdr rrest))))
-		(domonad current-monad 
-				 [right right]
-				 (apply f (suffix rest right)))))))
+;; (defun lift-right (f)
+;;   (lexical-let ((f f))
+;; 	(lambda (&rest rest)
+;; 	  (lexical-let* ((rrest (reverse rest))
+;; 					 (right (car rrest))
+;; 					 (rest (reverse (cdr rrest))))
+;; 		(domonad current-monad 
+;; 				 [right right]
+;; 				 (apply f (suffix rest right)))))))
 
-(defun lift-nth (f n)
-  (lexical-let ((f f) (n n))
-	(lambda (&rest rest)
-	  (let ((nth-item (elt rest n)))
-		(domonad current-monad
-				 [nth-item nth-item]
-				 (setf (elt rest n) nth-item)
-				 (apply f rest))))))
+;; (defun lift-nth (f n)
+;;   (lexical-let ((f f) (n n))
+;; 	(lambda (&rest rest)
+;; 	  (let ((nth-item (elt rest n)))
+;; 		(domonad* current-monad
+;; 				  [nth-item nth-item]
+;; 				  (setf (elt rest n) nth-item)
+;; 				  (apply f rest))))))
+
+
+
 
 (provide 'monads)
 
