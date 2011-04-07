@@ -48,15 +48,23 @@ won't work.  Such functions are called "monadic functions" and when we
 try to understand monads, or a specific monad, we must meditate on the
 type of these functions.
 
-Lots of people try to understand monads coming from a dynamic language
-perspective, where the types of functions are not often considered
-carefully.  By type we mean the information about what kinds of things
-go into a function and what kinds of things leave it.  Monadic
-functions always have a recognizeable type: they take a single
-argument and return a monadic value.  What that value is depends on
-the monad, but for a given monad, all monadic functions will have the
-same return type.  In most monads, one can consider the monadic value
-as "containing" the input type in some way.
+When coming to monads from dynamic languages, it can be easy to gloss
+over all the type language used to describe them.  But it really helps
+to think about types in a loosy-goosey way, at the very least, because
+type constraints are what make the plumbing in a monad work.  Our
+monad wraps values in some way, but it doesn't really care about what
+those values are, necessarily.  We'll just refer to them as "values".
+A *monadic value*, on the other hand, is the type constrained by the
+monad.  This type can be thought of as some kind of container which
+contains values.  A *monadic function* is a function with a specific
+type signature.  It takes a *value* and returns a *monadic value*.
+That is, it takes a thing you want in the monad, and returns a monadic
+value.  Often that monadic value is related to what came in, but
+sometimes it isn't.  A monadic function might return an empty monadic
+value, or one with contents generated based on the input, but distinct
+from it.  
+
+![Types of Interest](./monadic-types-of-interest.png "Types of Interest")
 
 We'll be talking about the sequence monad first.  We will represent
 sequences with regular old lisp lists, which can hold values of any
@@ -74,7 +82,7 @@ which is any lisp data, and return a list of lisp-values, you got it.
 So, whatever the hell a "list monad" is, its got something to do with
 composing functions which take a single lisp value and return a list.  
 
-Lets start kicking around ideas about composing these functions.  To
+Let's start kicking around ideas about composing these functions.  To
 do that we need a few functions to consider explicitly.  What are the
 simplest monadic functions of the list monad?  Well `list` is
 certainly such a function when you call it with one argument, so lets
@@ -98,10 +106,14 @@ monadic function whose behavior is partially specified via lexical
 closure over the variable `y`.  This is a very common pattern, and
 we'll see how it works in a bit.
 
-But we were meditating on function composition.  Lets just to just
-compose these functions directly.  To do that we should write a
-function which composes functions.
-
+But we were meditating on function composition.  Before going any
+further lets implement a function which composes functions.  Because
+emacs has, by default, dynamic scoping, we need to explicitely create
+a lexical closure with `lexical-let` so the lambda we return remembers
+what functions to call.  The only other wrinkle here is that order of
+composition is reversed from the order of application (`f1` is applies
+before `f2`) because this looks more natural in an applicative
+language.
 
     (defun compose2 (f2 f1)
       "Compose F2 and F1 by returning a new function which
@@ -121,15 +133,15 @@ function which composes functions.
          (cdr rfs)
          :initial-value (car rfs))))
 
-Lets try just composing some of our list monadic functions.  
+Let's try just composing some of our list monadic functions.  
 
     (compose #'list-incr #'list-decr)
 
-Because this is Elisp, we don't have any obvious problems so far.  Of
-course, if we think about this, we know it can't work.  `list-decr`
-takes a value, subtracts one, puts it in a list.  Then we try to call
-`list-incr` on that value, but it will barf, because it will try to
-add one to a _list_, which is not defined.  Try it
+Because this is Elisp, this doesn't cause and error.  Of course, if we
+think about this, we know it can't work.  `list-decr` takes a value,
+subtracts one, puts it in a list.  Then we try to call `list-incr` on
+that value, but it will barf, because it will try to add one to a
+_list_, which is not defined.  Try it:
 
     (funcall (compose #'list-incr #'list-decr) 10)
 
@@ -144,14 +156,14 @@ in particular, we want to make sure that the resulting function can be
 used wherever either of the two functions might have been used.  That
 is, we want the result type to be the same as the input types.  There
 are several approaches, obviously, but here is a sort of obvious one
-(read the comments here):
+(read the comments here, they are important):
 
     (defun list-func-compose (f2 f1)
        (lexical-let ((f1 f1)
                      (f2 f2))
         (lambda (arg) ; lambda need take only a single arg, as f1 must
           (let* ((r1 (funcall f1 arg)) 
-            ; r1 is a list, because its the result of f1, a monadic function.
+            ; r1 is a list, because it is the result of f1, a monadic function.
             ; f2 accepts regular old values, though, and r1 could
             ; concievably have many values in it.
                  (r2s (mapcar f2 r1)))
@@ -169,6 +181,12 @@ are several approaches, obviously, but here is a sort of obvious one
               ))))
 
 (n.b. If something about `r2s` type strikes you as odd, see footnote 1.)
+
+Pause to consider what happened here.  We apply `f1` to the input,
+which produces a list (a _monadic value_).  `F2` takes values, not
+monadic values, so we just `mapcar` `f2` over the values in the list.
+`F2`, like `f1` returns a list, so now we have a list of lists, which
+we concatenate into a big list, which is now our output monadic value.
 
 I hate when, in the course of a didactic development, something
 springs from nowhere with the proviso that "it will be useful later."
@@ -201,6 +219,12 @@ takes a non-monadic value and returns a monadic one.
 functions, but it doesn't reveal much about how they are combined with
 values.  `List-bind` describes that process, and it turns out this is
 more interesting.
+
+Another way of thinking of it is that if `list` describes how to turn
+a value into a monadic value, `list-bind` relates a mondaic function
+to a function which both operates on and returns monadic values.
+
+![Monadic Bind](./monadic-bind.png "Monadic Bind")
 
 Ok, believe it or not, we've basically covered the entire sequence
 monad already.  All that is left is to really get the idea and to
@@ -236,17 +260,24 @@ not in its usual form.  We'll come to that in a bit.
 
 ### Stepping Back ###
 
-Monads in one sentence: a monad is method for composing a class of
-functions with a specific type into a single function with that type.
-The method differs from monad to monad, but the meat of the monad is
-in the extra compositional plumbing the monad adds.
+Monads in one sentence: a monad is set of operations which relate
+specific functions called _monadic functions_ and specific values,
+which are either naked _values_ (the input type to _monadic
+functions_) or _monadic values_, which is the output type of monadic
+functions.  
+
+In particular, the _bind_ operation knows how to pull values out of
+monadic values, apply monadic functions to them, and collect all the
+resulting monadic values into one big monadic value.  Using _bind_ we
+can compose or otherwise manipulate monadic functions in a controlled
+way.
 
 Everything else is window dressing.
 
 ### But How Nice The Window Dressing ###
 
 Let's talk about `let*`.  We've been twisting up our brains into knots
-over monads.  Let those knots untwist and return to this simple,
+over monads, so let's let those knots untwist and return to this simple,
 clean, construct.  In Lisp, variable bindings are explicitly
 introduced.  You don't just declare a variable and go, you create a
 context for that variable with a `let` or `let*` statement.  You
@@ -371,7 +402,7 @@ expression now expands to:
 
 You should be chomping at the bit now, because we've basically
 invented do notation.  The question you should be asking is "What
-happens when we replace bind with some other function?"  Lets make a
+happens when we replace bind with some other function?"  Let's make a
 slightly newer macro to play with that idea.
 
     (defmacro monadic-let*-inner (bind-symbol binders &rest body)
