@@ -64,7 +64,7 @@ sometimes it isn't.  A monadic function might return an empty monadic
 value, or one with contents generated based on the input, but distinct
 from it.  
 
-![Types of Interest](./monadic-types-of-interest.png "Types of Interest")
+![Types of Interest](http://dl.dropbox.com/u/1076954/monadic-types-of-interest.png "Types of Interest")
 
 We'll be talking about the sequence monad first.  We will represent
 sequences with regular old lisp lists, which can hold values of any
@@ -224,7 +224,7 @@ Another way of thinking of it is that if `list` describes how to turn
 a value into a monadic value, `list-bind` relates a mondaic function
 to a function which both operates on and returns monadic values.
 
-![Monadic Bind](./monadic-bind.png "Monadic Bind")
+![Monadic Bind](http://dl.dropbox.com/u/1076954/monadic-bind.png "Monadic Bind")
 
 Ok, believe it or not, we've basically covered the entire sequence
 monad already.  All that is left is to really get the idea and to
