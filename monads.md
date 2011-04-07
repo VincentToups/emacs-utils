@@ -34,9 +34,9 @@ of tutorials when I was trying to wrap my mind around monads, and I
 can't say any one specific one really did the job.  I really had to
 implement monads in Elisp to finally get it, and then it only really
 clicked after I constructed a few "novel" monads from scratch (see
-[these][pryor-notes] course notes).  I'm pretty sure,
-after all this that the best way to get monads is to just start using
-them and thinking about them a lot.  But we'll give it a go anyway.  
+[these][pryor-notes] course notes).  I'm pretty sure, after all this,
+that the best way to get monads is to just start using them and
+thinking about them a lot.  But we'll give it a go anyway.
 
 I think of a monad as a way of decorating function composition.  If I
 have a group of functions that conform to a particular input and
@@ -91,6 +91,13 @@ put that on the pile.  In that spirit, consider:
     (defun stub (x) nil)
     (defun list-return (x) (list x))
 
+![monadic return](http://dl.dropbox.com/u/1076954/monadic-return.png "monadic return")
+
+`list-return` can be thought of as a sort of "default" or "simplest
+possible" monadic function.  Every monad needs a return, and every
+return does something like the above - it wraps its input into the
+monad in a simple way. 
+
 `stub` is also a monadic function - it ignores its inputs and returns
 the empty list.  Let's consider a couple more, for variety:
     
@@ -137,7 +144,7 @@ Let's try just composing some of our list monadic functions.
 
     (compose #'list-incr #'list-decr)
 
-Because this is Elisp, this doesn't cause and error.  Of course, if we
+Because this is Elisp, this doesn't cause an error.  Of course, if we
 think about this, we know it can't work.  `list-decr` takes a value,
 subtracts one, puts it in a list.  Then we try to call `list-incr` on
 that value, but it will barf, because it will try to add one to a
