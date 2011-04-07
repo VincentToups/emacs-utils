@@ -11,7 +11,7 @@ depends on several pieces of code, which themselves depend on code
 which I haven't described in detail anywhere.  Kanren depends on a
 monad (the "stream of substitutions" monad, for the nerds out there).
 An implementation of this monad is a good place to start when thinking
-about implementing Kanren itsef, but I've never written up a piece of
+about implementing Kanren itself, but I've never written up a piece of
 documentation on the implementation of Monads I've cooked up for
 Elisp, so I thought I'd start there.
 
@@ -75,7 +75,7 @@ So, whatever the hell a "list monad" is, its got something to do with
 composing functions which take a single lisp value and return a list.  
 
 Lets start kicking around ideas about composing these functions.  To
-do that we need a few functions to consider explicitely.  What are the
+do that we need a few functions to consider explicitly.  What are the
 simplest monadic functions of the list monad?  Well `list` is
 certainly such a function when you call it with one argument, so lets
 put that on the pile.  In that spirit, consider:
@@ -220,7 +220,7 @@ things:
              0); -> (4 2 -2 -4)
 
 Which gives us all the combinations of adding and subtracting three to
-the initial value.  We could also write this more succintcly as:
+the initial value.  We could also write this more succinctly as:
 
     (defun list+/- (n) (lexical-let ((n n))
            (lambda (x) (list (+ x n) (- x n))))) ;(remember this guy?)
@@ -229,7 +229,7 @@ the initial value.  We could also write this more succintcly as:
               (list+/- 3))
             0) ; -> (4 2 -2 -4)
 
-Which is a pretty common pattern.  `List+/-` produces a parameterized
+Which is a pretty common pattern.  `List+/-` produces a parametrized
 monadic function which we customize to our needs as we go.
 `List-func-compose` captures the essence of the list monad, but its
 not in its usual form.  We'll come to that in a bit.
@@ -247,7 +247,7 @@ Everything else is window dressing.
 
 Let's talk about `let*`.  We've been twisting up our brains into knots
 over monads.  Let those knots untwist and return to this simple,
-clean, construct.  In Lisp, variable bindings are explicitely
+clean, construct.  In Lisp, variable bindings are explicitly
 introduced.  You don't just declare a variable and go, you create a
 context for that variable with a `let` or `let*` statement.  You
 probably know that if you only had `lambda` and `defmacro` you could
@@ -318,7 +318,7 @@ You bet it does!  You know, ordinarily I could take or leave Lisp-2's.
 It seems kind of crufty to me to have to worry about a second
 namespace, to have to remember to type (funcall f-var a b c) or
 (funcall #'f a b c) but in this one case, its actually really useful
-that we have to write out funcall explicitely.  Its useful because it
+that we have to write out funcall explicitly.  Its useful because it
 reminds us something is going on there.  What would happen if we
 replaced those `funcall`s in the above expansion of `let*` with some
 other function?  Let's kick this can around a bit, and see if
@@ -342,7 +342,7 @@ executes the code.  Note: `funcall` takes `f` and then `v`, but
 `regular-bind` takes `v` and then `f`.  This might make more sense
 depending on how you read code ("bind v in f") or it might not.  It is
 just convention.  It is called `regular-bind` because it doesn't
-really do anythign that funcall doesn't already do.  Monads, though,
+really do anything that funcall doesn't already do.  Monads, though,
 are all about _irregular_ bind operations.
 
 Let's rewrite `let*` so that it uses bind instead of funcall:
@@ -458,7 +458,7 @@ operation.  It is mentioned and used above.  A monad is technically
 completely defined by specifying just two functions: `bind` and
 `return`.  Bind we discussed heavily, but `return` was just thrown out
 there.  Bind is its own beast, but `return` is a monadic function.  You
-should know that that means `return` takes an object that isn't in the
+should know that means that `return` takes an object that isn't in the
 monad and returns a monadic value.  `Return` is special in that it does
 this in the simplest way possible for the monad.  For the list monad,
 recall that  `return` was just `list`.  
