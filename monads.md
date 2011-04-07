@@ -131,7 +131,7 @@ takes a value, subtracts one, puts it in a list.  Then we try to call
 `list-incr` on that value, but it will barf, because it will try to
 add one to a _list_, which is not defined.  Try it
 
-    (funcall (-compose #'list-incr #'list-decr) 10)
+    (funcall (compose #'list-incr #'list-decr) 10)
 
 My emacs gives:
 
