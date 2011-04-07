@@ -243,8 +243,9 @@ things:
               (lambda (x) (list (+ x 3) (- x 3))))
              0); -> (4 2 -2 -4)
 
-Which gives us all the combinations of adding and subtracting three to
-the initial value.  We could also write this more succinctly as:
+Which gives us all the combinations of adding and subtracting three
+and one to the initial value.  We could also write this more
+succinctly as:
 
     (defun list+/- (n) (lexical-let ((n n))
            (lambda (x) (list (+ x n) (- x n))))) ;(remember this guy?)
