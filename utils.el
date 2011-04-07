@@ -1351,6 +1351,7 @@ PRED to control set equality.  Defaults to EQUAL."
 
 (defmacro* lex-defun (name arglist doc &body body)
   "Define a function with lexically bound arguments."
+  (declare (indent defun))
   (let* ((actual-args (filter 
 					   (lambda (x) 
 						 (let ((x (format "%s" x)))
@@ -1872,5 +1873,13 @@ which is the identity, by default."
   "Indicate that the body should be evaluated at both compile and run time."
   `(progn (eval-when-compile ,@rest)
 		  (progn ,@rest)))
+
+(defun pair? (o)
+  "True if o is a pair, that is, exactly a non-null list."
+  (if o (listp o) o))
+
+(defmacro lambdac (args &rest body)
+  "Lambda, then byte-compile"
+  `(byte-compile (lambda ,args ,@body)))
 
 (provide 'utils)

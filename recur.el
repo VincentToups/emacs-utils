@@ -3,6 +3,7 @@
 (require 'functional)
 (require 'parse-lambda-list)
 (require 'lambda-star)
+(require 'cl)
 (provide 'recur)
 
 
