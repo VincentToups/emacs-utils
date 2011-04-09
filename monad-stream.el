@@ -1,21 +1,22 @@
 (require 'monads)
 
-(defun stream-case-names (sub-form)
-  (car sub-form))
+(eval-when-compile-also 
+ (defun stream-case-names (sub-form)
+   (car sub-form))
 
-(defun stream-case-one (sub-form stream)
-  (let ((names (stream-case-names sub-form)))
-	`((not (and (pair? ,stream)
-				(functionp (cdr ,stream))))
-	  (let ((,(car names) (car ,stream)))
-		,@(cdr sub-form)))))
+ (defun stream-case-one (sub-form stream)
+   (let ((names (stream-case-names sub-form)))
+	 `((not (and (pair? ,stream)
+				 (functionp (cdr ,stream))))
+	   (let ((,(car names) (car ,stream)))
+		 ,@(cdr sub-form)))))
 
-(defun stream-case-more (sub-form stream)
-  (let ((names (stream-case-names sub-form))
-		(body (cdr sub-form)))
-	`(t (let ((,(car names) (car ,stream))
-			  (,(cadr names) (cdr ,stream)))
-		  ,@body))))
+ (defun stream-case-more (sub-form stream)
+   (let ((names (stream-case-names sub-form))
+		 (body (cdr sub-form)))
+	 `(t (let ((,(car names) (car ,stream))
+			   (,(cadr names) (cdr ,stream)))
+		   ,@body))))
 
 (defmacro stream-case (expr on-zero on-one on-more)
   (with-gensyms 
@@ -24,7 +25,7 @@
 	  (cond
 	   ((not ,stream) ,on-zero)
 	   ,(stream-case-one on-one stream)
-	   ,(stream-case-more on-more stream)))))
+	   ,(stream-case-more on-more stream))))))
 
 (defun stream-cdr (stream)
   (stream-case stream
@@ -33,7 +34,14 @@
 			   ((a f) (funcall f))))
 
 (defmacro mk-stream (car expr)
-  (cons ,car (lambda nil ,@expr)))
+  `(cons ,car (lambda nil ,@expr)))
+
+
+
+(eval-when-compile-also
+
+(defmacro choice (a &optional f)
+  `(cons ,a ,f))
 
 (defun transform-binder (binder)
   (cond 
@@ -52,18 +60,17 @@
 	   ,(mapcar #'transform-binder binders)
 	 (cons ,car ,expr)))
 
-(defmacro choice (a f)
-  `(cons ,a ,f))
 
 (defun ->choice*binders (thing)
   (cond 
    ((symbolp thing) `((,thing ,thing)))
    ((listp thing) (mapcar #'transform-binder thing))))
 
-(defmacro* choice* (a f &key (with nil))
+
+(defmacro* choice* (a &optional f &key (with nil))
   `(lexical-let ,(->choice*binders with)
 	 (cons ,a ,f)))
-
+)
 (example 
  (let ((stream (let ((q 10))
 				 (choice* 33 (lambdac () (+ 1 q)) :with (q)))))
@@ -78,18 +85,20 @@
   (stream-return x))
 
 (defun stream-plus (stream f)
+  (db-print stream)
+  (db-print f)
   (stream-case stream
 			   (funcall f)
-			   ((a) (choice* a f :with (f)))
-			   ((a f0) (choice* a
-								(stream-plus (funcall f0) f) :with (f)))))
+			   ((a) (cons a f))
+			   ((a f0) (cons a
+								(lambda () (stream-plus (funcall f0) f)) :with (f f0)))))
 
 (defun stream-plus^i (stream f)
   (stream-case stream
 			   (funcall f) 
-			   ((a) (choice* a f :with (f)))
+			   ((a) (cons a f))
 			   ((a f0) (choice* a
-								(stream-plus^i (funcall f) f0) :with (f0)))))
+								(stream-plus^i (funcall f) f0)))))
 
 (defun stream-bind (stream g)
   (stream-case stream
@@ -121,19 +130,20 @@
 (defvar %u %fail)
 
 (defun stream-return (x)
-  (cons x (lambda () nil)))
+  (cons x nil))
 
-(defvar stream-monad 
+(defvar monad-stream 
   (tbl! :m-bind #'stream-bind
 		:m-return #'stream-return 
         :m-zero #'stream-zero))
 
 
-(defvar stream-monad^i
+(defvar monad-stream^i
   (tbl! :m-bind #'stream-bind^i
 		:m-return #'stream-return 
         :m-zero #'stream-zero))
 
+(eval-when-compile-also
 (defmacro stream (&rest expressions)
   (cond
    ((not expressions)
@@ -143,25 +153,19 @@
    (t
 	`(choice ,(car expressions)
 			 (lambda ()
+			   (stream ,@(cdr expressions))))))))
+
+(defmacro streamc (&rest expressions)
+  (cond
+   ((not expressions)
+	nil)
+   ((= 1 (length expressions))
+	`(choice ,(car expressions) nil))
+   (t
+	`(choice ,(car expressions)
+			 (lambdac ()
 			   (stream ,@(cdr expressions)))))))
 
-(cl-prettyprint (macroexpand-all '(stream 1 2 3 4)))
-(cons 1
-	  (function
-	   (lambda nil
-		 (cons 2
-			   (function
-				(lambda nil (cons 3 (function (lambda nil (cons 4 nil))))))))))
-
-
-(domonad stream-monad 
-		 [x (stream 1 2 3)
-			y (stream 4 5 6)
-			z (progn 
-				(stream (+ x y)))]
-		 z)s
-
-( stream-bind (stream 1) (lambda (x) (stream (+ x 1))) )
 
 (defun stream-cdr (stream)
   (stream-case stream
@@ -175,9 +179,40 @@
 			   ((a) a)
 			   ((a f) a)))
 
-(stream-case (stream 1 2 3)
-			 nil
-			 ((a) a)
-			 ((a f) (funcall f)))
+(defvar ones (choice 1 (lambda () ones))
+  "An infinite stream of ones.")
+(defvar zeros (choice 1 (lambda () zeros))
+  "An infinite stream of zeros.")
 
-(stream-car (stream-cdr (stream-cdr (stream-cdr (stream 1 2 3 4)))))
+(defun nums-from (n)
+  "Return a stream of numbers from N to infinity."
+  (choice* n (lambda () (nums-from (+ n 1))) :with n))
+
+(defvar positive-integers 
+  (nums-from 1) "An infinite stream of integers.")
+
+
+
+(recur-defun* take-n (stream n &optional output)
+  (if (= n 0) (reverse output)
+	(stream-case 
+	 stream
+	 (reverse output)
+	 ((a) (reverse (cons a output)))
+	 ((a f)
+	  (recur (stream-cdr stream) 
+			 (- n 1)
+			 (cons a output))))))
+
+
+(defvar fibs (choice 1 (lambda () 
+						 (choice 1 
+								 (lambda ()
+								   (mlet* monad-stream
+											((a fibs)
+											 (b (stream-cdr fibs)))
+											(+ a b)))))))
+(provide 'monad-stream)
+
+
+

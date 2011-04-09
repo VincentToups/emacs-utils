@@ -247,7 +247,9 @@
 	  (let ((qtn (pop *stack*))
 			(item (pop *stack*)))
 		(if (listp qtn)
-			(push (cons item qtn) *stack*)
+			(if (atom item)
+				(push (cons item qtn) *stack*)
+			  (push (cons `(quote ,item) qtn) *stack*))
 		  (error "stack: curry needs a list on the top of the stack.")))
 	(error "stack: curry needs at least two arguments on the stack.")))
 (defstackword compose 

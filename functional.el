@@ -131,12 +131,16 @@
 			 (lambda (&rest args)
 			   (apply f (mapcar dec args))))
 
-  (lex-defun decorate-n (f index trans)
-			 (lambda (&rest args)
-			   (let* ((el (elt args index))
-					  (new (funcall trans el)))
-				 (setf (elt args index) new)
-				 (apply f args))))
+(lex-defun decorate-n (f index trans)
+  (lambda (&rest args)
+	(let* ((el (elt args index))
+		   (new (funcall trans el)))
+	  (setf (elt args index) new)
+	  (apply f args))))
 
+(lex-defun f-comb-with (f-comb f1 f2)
+  (lambda (&rest args)
+	(funcall f-comb (apply f1 args) (apply f2 args))))
+  
 
 (provide 'functional)

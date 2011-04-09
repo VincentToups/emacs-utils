@@ -1,4 +1,4 @@
-<h1>Advanced Elisp Part 1</h1>
+<h1>Deep Elisp Part 1</h1>
 
 <h2>Implementing Monads</h2>
 
@@ -14,6 +14,9 @@ about implementing Kanren itself, but I've never written up a piece of
 documentation on the implementation of Monads I've cooked up for
 Elisp, so I thought I'd start there.</p>
 
+<p>So, this document one part monad tutorial and one part introduction to
+the <code>monads.el</code> implementation.  </p>
+
 <p>First, credit where its due: the following implementation of Monads
 owes is basic form to the <a href="http://richhickey.github.com/clojure-contrib/monads-api.html" title="Clojure Contrib Monad Library">monad library in
 Clojure-contrib</a>.  I wrote it while reading through Jim
@@ -27,14 +30,29 @@ was doing without the tutorial.  </p>
 
 <h3>Onto the Monads</h3>
 
-<p>We've reached the monad tutorial part of this document.  I read tons
-of tutorials when I was trying to wrap my mind around monads, and I
-can't say any one specific one really did the job.  I really had to
-implement monads in Elisp to finally get it, and then it only really
-clicked after I constructed a few "novel" monads from scratch (see
-<a href="http://lambda.jimpryor.net/" title="Jim Pryor Notes">these</a> course notes).  I'm pretty sure,
-after all this that the best way to get monads is to just start using
-them and thinking about them a lot.  But we'll give it a go anyway.  </p>
+<p>We've reached the monad tutorial part of this document.  Like most
+people, I found monads pretty hard to understand when I first
+encountered them.  Most monad tutorials speak in Haskell, which I
+think can be doubly confusing because its hard to tell exactly where
+Haskell ends and where monads begin, since Haskell has special syntax
+built in to the language just for the purpose of dealing with monads.
+You can, of course, use the functions <code>&gt;&gt;=</code> and <code>return</code> outside of do
+notation, as many tutorials do, but at least dealing with <code>&gt;&gt;=</code>
+requires a fair amount of comfort with Haskell's infix operator
+system.  At least it seemed that way to me. </p>
+
+<p>I really had to implement monads in Elisp to finally get it.  I think
+this worked because every part of the monad beastiary had to be built
+from the ground up.  If you want  "do notation," for instance, it
+isn't just there, you have to write a macro for it, and understand
+it.  The uniformity of Lisp syntax (which some people hate, I know)
+also helps keep things focused on the ideas.  That is the approach we
+will take here.  We'll start just kicking around some general ideas
+and gradually build up to <code>do</code> notation, making constant analogy to
+well understood lisp and programming concepts.  I think this is better
+than throwing oneself in head first. </p>
+
+<h3>Notes on Types</h3>
 
 <p>I think of a monad as a way of decorating function composition.  If I
 have a group of functions that conform to a particular input and
@@ -49,35 +67,53 @@ type of these functions.</p>
 <p>When coming to monads from dynamic languages, it can be easy to gloss
 over all the type language used to describe them.  But it really helps
 to think about types in a loosy-goosey way, at the very least, because
-type constraints are what make the plumbing in a monad work.  Our
-monad wraps values in some way, but it doesn't really care about what
-those values are, necessarily.  We'll just refer to them as "values".
-A <em>monadic value</em>, on the other hand, is the type constrained by the
-monad.  This type can be thought of as some kind of container which
-contains values.  A <em>monadic function</em> is a function with a specific
-type signature.  It takes a <em>value</em> and returns a <em>monadic value</em>.
-That is, it takes a thing you want in the monad, and returns a monadic
-value.  Often that monadic value is related to what came in, but
-sometimes it isn't.  A monadic function might return an empty monadic
-value, or one with contents generated based on the input, but distinct
-from it.  </p>
+type constraints are what make the plumbing in a monad work.  Monads
+generally contain things.  In statically typed languages the monad
+type depends on the type of the things it holds, so it would be
+specified, but we'll just refer to these things as "values".  Their
+type isn't terribly important except that they are distinct from the
+type of <em>monadic values</em>. </p>
 
-<p><img src="./monadic-types-of-interest.png" alt="Types of Interest" title="Types of Interest" /></p>
+<p>A <em>monadic value</em> can be thought of as an abstract container which
+contains can regular values.  Sometimes this is a rather obvious kind
+of relationship.  A list "contains" values, for instance.  Sometimes
+it can be much more abstract.</p>
+
+<p>Finally, there are <em>monadic functions</em>.  A monadic function is a
+function which takes a regular value and returns a <em>monadic value</em>.
+It is important to think about these types while we work on the rest
+of the tutorial, so take a second to look at the diagrams, and then
+get into the habit of calling to mind the types of various objects
+whenever you get confused.  It really helped me.</p>
+
+<p><img src="http://dl.dropbox.com/u/1076954/monadic-types-of-interest.png" alt="Types of Interest" title="Types of Interest" /></p>
+
+<h3>The List or Sequence Monad</h3>
 
 <p>We'll be talking about the sequence monad first.  We will represent
 sequences with regular old lisp lists, which can hold values of any
-lisp type.  The monadic type, then, is lists.  Lists "contain"
-(really, they literally contain) lisp data.  Let us meditate upon the
-type of monadic functions in the sequence monad.</p>
+lisp type.  The monadic values, then, are lists.  Lists "contain"
+(they also contain) lisp data.  Let us meditate upon the type of
+monadic functions in the sequence monad.</p>
 
 <p>==== this space reserved for meditation ==== </p>
 
 <p>If you guessed in your meditation that the monadic functions
 associated with the sequence or list monad (we'll use the two
 interchangeably from here on) are functions which take a single value,
-which is any lisp data, and return a list of lisp-values, you got it.
-So, whatever the hell a "list monad" is, its got something to do with
+which is any lisp data, and return a list of lisp-values, you got it.</p>
+
+<p>So, whatever the hell a "list monad" is, its got something to do with
 composing functions which take a single lisp value and return a list.  </p>
+
+<p>What kind of functions might do this?  Well, a common idea is that
+functions in the list monad represent computations with multiple
+possible outcomes or values.  A person might have multiple friends, so
+a function <code>get-friends</code> might return a <em>list</em> of persons rather than
+a single person.  We might want to go on to calculate those persons'
+friends (or enemies, relatives, lovers).  All these <code>get-</code> functions
+would be monadic functions in the list monad, and the list monad will
+help use deal with them.</p>
 
 <p>Let's start kicking around ideas about composing these functions.  To
 do that we need a few functions to consider explicitly.  What are the
@@ -89,30 +125,77 @@ put that on the pile.  In that spirit, consider:</p>
 (defun list-return (x) (list x))
 </code></pre>
 
-<p><code>stub</code> is also a monadic function - it ignores its inputs and returns
-the empty list.  Let's consider a couple more, for variety:</p>
+<p><img src="http://dl.dropbox.com/u/1076954/monadic-return.png" alt="monadic return" title="monadic return" /></p>
 
-<pre><code>(require 'cl)
-(defun list-incr (x) (list (+ x 1)))
-(defun list-decr (x) (list (- x 1)))
-(defun list+/- (y) (lexical-let ((y y))
-   (lambda (x) (list (+ x y) (- x y)))))
+<p><code>list-return</code> can be thought of as a sort of "default" or "simplest
+possible" monadic function.  We've just wrapped up <code>list</code> so that it
+takes but one argument.  Every monad needs a return, and every return
+does something like the above - it wraps its input into the monad in a
+simple way.</p>
+
+<p><code>stub</code> is also a monadic function - it ignores its inputs and returns
+the empty list.  </p>
+
+<p>Ok, lets write some semi-meaningful list-monadic functions.  Consider:</p>
+
+<pre><code>(defvar *people* '(:ted :lea :leo :james 
+                   :harvey :sally :jane :andrew 
+                   :catherine) 
+                   "A list of all the people that matter.")
+(defvar *friends-db* 
+      '((:ted (:lea :leo :sally :andrew :catherine :leo :jane))
+        (:lea (:ted :leo :jane :andrew :harvey :sally :catherine))
+        (:leo (:ted :lea :ted :harvey :sally :jane :andrew 
+                    :catherine :harvey :andrew :catherine))
+        (:james (:jane :harvey :jane))
+        (:harvey (:leo :lea :leo :james :harvey :harvey :sally))
+        (:sally (:ted :leo :lea :harvey :jane :andrew))
+        (:jane (:lea :leo :james :sally :ted :james :andrew :catherine))
+        (:andrew (:ted :lea :leo :sally :jane :leo))
+        (:catherine (:ted :leo :lea :leo :jane :catherine :catherin))) 
+"Our database of friend connections.")
+
+(defun friends-of (person) 
+  "Return a list of all the people in friends-db."
+  (alist *friends-db* person)
+         ;alist is a function which retrieves
+         ;a key's data from an association list.
+)
+
+(defun mutual-friends-with (person1)
+  "Return a monadic function which returns 
+   the friends person1 has in common with person2."
+  (lexical-let ((p1-friends (friends-of person1)))
+    (lambda (person2) 
+      (let ((p2-friends (friends-of person2)))
+       (filter (lambda (friend)
+                 (in friend p1-friends)) p2-friends)))))
 </code></pre>
 
-<p>The functions <code>list-incr</code> and <code>list-decr</code> are obvious enough.  That
-third beast is not itself a monadic function, but it <em>returns</em> a
-monadic function whose behavior is partially specified via lexical
-closure over the variable <code>y</code>.  This is a very common pattern, and
-we'll see how it works in a bit.</p>
+<p><code>Friends-of</code> is more or less obvious enough.  It simply retrieves
+the database entry in the friends database, here represented as an
+association list.  It takes a person and returns a list of persons, so
+it is a monadic function.  </p>
 
-<p>But we were meditating on function composition.  Before going any
-further lets implement a function which composes functions.  Because
-emacs has, by default, dynamic scoping, we need to explicitely create
-a lexical closure with <code>lexical-let</code> so the lambda we return remembers
-what functions to call.  The only other wrinkle here is that order of
-composition is reversed from the order of application (<code>f1</code> is applies
-before <code>f2</code>) because this looks more natural in an applicative
-language.</p>
+<p>The second function is a little more complicated.  It takes a person
+and returns a function, so its not a monadic function itself.  It
+does, however, return a monadic function - one parameterized on
+<code>person1</code>.  It returns the friends of <code>person2</code> that are also friends
+with <code>person1</code>.  This business of having a function which returns a
+<em>parameterized</em> monadic function is pretty common, and it will lend
+monadic expressions a certain domain-specific-language feel, as you'll
+see.  Note that we need a <code>lexical-let</code> in the function body to create
+a closure around <code>p1-friends</code>.  If we used a <code>let</code>, <code>p1-friends</code> would
+be out of scope by the time someone called the <code>lambda</code>.  If this is
+confusing, see the wikipedia article on <a href="http://en.wikipedia.org/wiki/Scope_(programming)" title="Scope in Programming">scope in programming
+languages</a>.  Emacs has a default dynamic scope, but most modern
+languages are lexical<sup>2</sup>.   </p>
+
+<p>But we were meditating on fun!tion composition.  Before going any
+further lets implement a function which composes functions.  The only
+wrinkle here is that order of composition is reversed from the order
+of application (<code>f1</code> is applies before <code>f2</code>) because this looks more
+natural in an applicative language.</p>
 
 <pre><code>(defun compose2 (f2 f1)
   "Compose F2 and F1 by returning a new function which
@@ -133,26 +216,18 @@ language.</p>
      :initial-value (car rfs))))
 </code></pre>
 
-<p>Let's try just composing some of our list monadic functions.  </p>
+<p>Let's try just composing some of our list monadic functions.  We might
+actually want a function to calculate the <code>friends-of</code> the
+<code>friends-of</code> someone:</p>
 
-<pre><code>(compose #'list-incr #'list-decr)
+<pre><code>(compose #'friends-of #'friends-of)
 </code></pre>
 
-<p>Because this is Elisp, this doesn't cause and error.  Of course, if we
-think about this, we know it can't work.  <code>list-decr</code> takes a value,
-subtracts one, puts it in a list.  Then we try to call <code>list-incr</code> on
-that value, but it will barf, because it will try to add one to a
-<em>list</em>, which is not defined.  Try it:</p>
-
-<pre><code>(funcall (compose #'list-incr #'list-decr) 10)
-</code></pre>
-
-<p>My emacs gives:</p>
-
-<pre><code>Debugger entered--Lisp error: 
-    (wrong-type-argument number-or-marker-p (9))
-  +((9) 1)
-</code></pre>
+<p>Because this is Elisp, this doesn't cause an error.  Of course, if we
+think about this, we know it can't work.  As soon as well call this
+function, we'll get an error, because the second friends-of will be
+applied to a list, rather than a single person.  Try it, if you are
+having trouble seeing it.</p>
 
 <p>Suppose we were dead set on jamming these two functions together and,
 in particular, we want to make sure that the resulting function can be
@@ -211,7 +286,7 @@ value and a monadic function and returns a new monadic value:</p>
   (lexical-let ((f1 f1)
                 (f2 f2))
     (lambda (value) 
-       (let ((monadic-value (f1 value)))
+       (let ((monadic-value (funcall f1 value)))
           (list-bind monadic-value f2)))))
 </code></pre>
 
@@ -220,66 +295,83 @@ its one of the monad functions which any monad needs)?  <code>List-bind</code>
 is, in a way, the fundamental operation relating monadic functions and
 monadic values in the list monad.  <code>List-func-compose</code> might seem more
 directly useful, but it is kind of strange that the resulting function
-takes a non-monadic value and returns a monadic one.
-<code>List-func-compose</code> relates monadic functions and other monadic
+takes a non-monadic value and returns a monadic one.</p>
+
+<p><code>List-func-compose</code> relates monadic functions and other monadic
 functions, but it doesn't reveal much about how they are combined with
 values.  <code>List-bind</code> describes that process, and it turns out this is
 more interesting.</p>
 
 <p>Another way of thinking of it is that if <code>list</code> describes how to turn
-a value into a monadic value, <code>list-bind</code> relates a mondaic function
+a value into a monadic value, <code>list-bind</code> relates a mondadic function
 to a function which both operates on and returns monadic values.</p>
 
-<p><img src="./monadic-bind.png" alt="Monadic Bind" title="Monadic Bind" /></p>
+<p><img src="http://dl.dropbox.com/u/1076954/monadic-bind.png" alt="Monadic Bind" title="Monadic Bind" /></p>
 
 <p>Ok, believe it or not, we've basically covered the entire sequence
 monad already.  All that is left is to really get the idea and to
 understand how it relates to Haskell's do notation and the canonical
-monad operations.</p>
+monad operations.  But it bears repeating - "do notation" isn't the
+same thing as monads.  It is just syntactic sugar.  Its might be best
+to understand monads before do notation, depending on your
+temperament. </p>
 
 <p>Let's try things out, however.  </p>
 
-<pre><code>(funcall (list-func-compose #'list-decr #'list-decr) 5); -&gt; (3)
+<pre><code>(funcall (list-func-compose #'friends-of #'friends-of) :leo) 
+(:lea
+ :leo :sally :andrew :catherine :leo :jane :ted :leo :jane :andrew
+ :harvey :sally :catherine :lea :leo :sally :andrew :catherine :leo
+ :jane :leo :lea :leo :james :harvey :harvey :sally :ted :leo :lea
+ :harvey :jane :andrew :lea :leo :james :sally :ted :james :andrew
+ :catherine :ted :lea :leo :sally :jane :leo :ted :leo :lea :leo
+ :jane :catherine :catherin :leo :lea :leo :james :harvey :harvey
+ :sally :ted :lea :leo :sally :jane :leo :ted :leo :lea :leo :jane
+ :catherine :catherin)
 </code></pre>
+
+<p>(We're probably really interested in the unique values of this list.
+We could use something called the set monad to get those, or we could 
+just pass this result through <code>unique</code>.</p>
 
 <p>Pretty anti-climactic, for sure.  But we can do more interesting
 things:</p>
 
-<pre><code>(funcall (list-func-compose
-          (lambda (x) (list (+ x 1) (- x 1)))
-          (lambda (x) (list (+ x 3) (- x 3))))
-         0); -&gt; (4 2 -2 -4)
+<pre><code>(funcall 
+  (list-func-compose 
+     (mutual-friends-with :lea) #'friends-of)
+  :leo)
 </code></pre>
 
-<p>Which gives us all the combinations of adding and subtracting three to
-the initial value.  We could also write this more succinctly as:</p>
-
-<pre><code>(defun list+/- (n) (lexical-let ((n n))
-       (lambda (x) (list (+ x n) (- x n))))) ;(remember this guy?)
-(funcall (list-func-compose
-          (list+/- 1)
-          (list+/- 3))
-        0) ; -&gt; (4 2 -2 -4)
-</code></pre>
-
-<p>Which is a pretty common pattern.  <code>List+/-</code> produces a parametrized
-monadic function which we customize to our needs as we go.
-<code>List-func-compose</code> captures the essence of the list monad, but its
-not in its usual form.  We'll come to that in a bit.</p>
+<p>This composition gives a list of the friends of Leo who are also
+friends with Lea.  As indicated above, what we've done here is
+inserted a parameterized monadic function into the composition.  This
+turns out to be useful.  It also hints at the next step.  What if we
+wanted to parameterize a monadic function based on some of the values
+"coming down the pipe" in the monad?  How could we do that?  In a
+regular function composition all those values are invisible.  Is there
+way we can name them which preserves the utility of this approach?</p>
 
 <h3>Stepping Back</h3>
 
-<p>Monads in one sentence: a monad is method for composing a class of
-functions with a specific type into a single function with that type.
-The method differs from monad to monad, but the meat of the monad is
-in the extra compositional plumbing the monad adds.</p>
+<p>Monads in one sentence: a monad is set of operations which relate
+specific functions called <em>monadic functions</em> and specific values,
+which are either naked <em>values</em> (the input type to <em>monadic
+functions</em>) or <em>monadic values</em>, which is the output type of monadic
+functions.  </p>
+
+<p>In particular, the <em>bind</em> operation knows how to pull values out of
+monadic values, apply monadic functions to them, and collect all the
+resulting monadic values into one big monadic value.  Using <em>bind</em> we
+can compose or otherwise manipulate monadic functions in a controlled
+way.</p>
 
 <p>Everything else is window dressing.</p>
 
-<h3>But How Nice The Window Dressing</h3>
+<h3>Window Dressing</h3>
 
 <p>Let's talk about <code>let*</code>.  We've been twisting up our brains into knots
-over monads.  Let those knots untwist and return to this simple,
+over monads, so let's let those knots untwist and return to this simple,
 clean, construct.  In Lisp, variable bindings are explicitly
 introduced.  You don't just declare a variable and go, you create a
 context for that variable with a <code>let</code> or <code>let*</code> statement.  You
@@ -431,7 +523,8 @@ slightly newer macro to play with that idea.</p>
                                                ; over ,symbol.  
                                                ; we want one
                                                ; for lots of monads.
-               (monadic-let*-inner ,bind-symbol ,leftover-bindings ,@body))))))))
+               (monadic-let*-inner 
+                   ,bind-symbol ,leftover-bindings ,@body))))))))
 
 (defmacro monadic-let* (bind-f-expression binders &amp;rest body)
   (let ((bind-symbol (gensym "temporary-bind-symbol-")))
@@ -474,11 +567,11 @@ value again before returning the result.</p>
 
 <p>The reasons for doing something like this are as varied as the kinds
 of monads that are out there.  In Haskell, monads are a way of writing
-declarative style code in a pure fashion, but even in non-static
-languages, monads can pull some neat tricks.  The sequence monad,
-combined with <code>monadic-let*</code> is essentially a list comprehension.
-Suppose we want to collect all the combinations of two numbers less
-than 100 whose sum is less than 10.</p>
+declarative style code in a pure fashion, but even in non-static,
+non-pure languages, monads can pull some neat tricks.  The sequence
+monad, combined with <code>monadic-let*</code> is essentially a list
+comprehension.  Suppose we want to collect all the combinations of two
+numbers less than 100 whose sum is less than 10.</p>
 
 <pre><code>(monadic-let*
  #'list-bind 
@@ -498,17 +591,6 @@ co-routines or to use a stream monad to make dealing with lazy lists
 easier.  We'll revisit this in another post.</p>
 
 <h3>Notes about the monads.el library</h3>
-
-<p>I think this monad tutorial is relatively unusual in that it doesn't
-spend a great deal of time belaboring the existence of the <code>return</code>
-operation.  It is mentioned and used above.  A monad is technically
-completely defined by specifying just two functions: <code>bind</code> and
-<code>return</code>.  Bind we discussed heavily, but <code>return</code> was just thrown out
-there.  Bind is its own beast, but <code>return</code> is a monadic function.  You
-should know that means that <code>return</code> takes an object that isn't in the
-monad and returns a monadic value.  <code>Return</code> is special in that it does
-this in the simplest way possible for the monad.  For the list monad,
-recall that  <code>return</code> was just <code>list</code>.  </p>
 
 <p>It turns out its handy in the context of monadic operations to have
 <code>bind</code> and <code>return</code> (and some other things) dynamically defined, so in
@@ -550,10 +632,27 @@ written in the following way using <code>monads.el</code>.</p>
 they define them automatically.</p>
 
 <p><code>Monads.el</code> defines several common monads in addition to the
- sequence monad.  These include the state monad, the continuation
- monad, the set monad (parameterized on an equality predicate), an
- Error monad, and a Maybe monad.  <code>Monad-parse.el</code> defines a monadic
- parser combinator library which is really useful (to me, anyway).</p>
+sequence monad.  These include the state monad, the continuation
+monad, the set monad (parameterized on an equality predicate), an
+Error monad, and a Maybe monad.  <code>Monad-parse.el</code> defines a monadic
+parser combinator library which is really useful (to me, anyway).</p>
+
+<h3>Sujar</h3>
+
+<p>The monad library can make use of my implementation of Clojure-style
+destructuring bind too.  One can write the above expression as</p>
+
+<pre><code>(domonad_ monad-seq 
+ [x (range 1 101)
+  y (range 1 101)]
+ (if (&lt; (+ x y) 10) (m-return (list x y)) nil))
+</code></pre>
+
+<p>Besides the superficial change of using a vector for the binding
+expressions, you can use arbitrary nested binding forms inside.  If
+you are familiar with clojure, it works basically like that, except
+that tables are destructured with <code>[:: ]</code> instead of <code>{ }</code> and you can
+use table-destructuring on hash tables and alists.  </p>
 
 <h3>Conclusions</h3>
 
@@ -574,20 +673,133 @@ you, just skip the rest of this note.  I bring it up only because if
 it has occured to you, it might be somewhat confusing.  You might ask:
 why don't we just return <code>r2s</code> instead of <code>(reduce #'append r2s)</code>?
 This kind of of conceptual confusion is related to the fact that Lisp
-is not statically typed (or is <a href="http://existentialtype.wordpress.com/2011/03/19/dynamic-languages-are-static-languages/)" title="Inflammatory Writ">statically typed but you are
+is not statically typed (or is <a href="http://existentialtype.wordpress.com/2011/03/19/dynamic-languages-are-static-languages/" title="Inflammatory Writ">statically typed but you are
 restricted to a single type of which the various "types" of values
-constitute classes</a>). In a statically typed language
-the sequence monad would be parameterized on the type of its contents,
-which we'd specify where we were using it.  So we'd have a type like
-<code>SeqM Int</code> (read that as "the sequence of ints monad") which would
-tell use that our monadic values were lists of integers <em>only</em>, and
-consequently <code>r2s</code> above would be manifestly <em>not</em> a monadic value,
-and it would be more obvious that we needed to append its contents
-together before recapturing a monadic value.  In a dynamic language
-this isn't as obvious, but its still conceptually necessary.  The
-upshot is that the fact that <code>r2s</code> is a monadic value is a
-<em>coincidence</em>, the essence of the list monad is still to <em>combine</em> the
-results of monadic functions, rather than to merely <em>collect</em> them,
-which is what returning <code>r2s</code> itself would represent. If you <em>did</em>
-read this despite my warning, you're probably really confused.  Its
-ok.  This stuff is confusing at first.)</p>
+constitute classes</a>). </p>
+
+<p>In a statically typed language the sequence monad would be
+parameterized on the type of its contents, which we'd specify where we
+were using it.  So we'd have a type like <code>SeqM Int</code> (read that as "the
+sequence of ints monad") which would tell use that our monadic values
+were lists of integers <em>only</em>, and consequently <code>r2s</code> above would be
+manifestly <em>not</em> a monadic value, and it would be more obvious that we
+needed to append its contents together before recapturing a monadic
+value.  In a dynamic language this isn't as obvious, but its still
+conceptually necessary.  The upshot is that the fact that <code>r2s</code> is a
+monadic value is a <em>coincidence</em>, the essence of the list monad is
+still to <em>combine</em> the results of monadic functions, rather than to
+merely <em>collect</em> them, which is what returning <code>r2s</code> itself would
+represent. If you <em>did</em> read this despite my warning, you're probably
+really confused.  Its ok.  This stuff is confusing at first.)</p>
+
+<hr />
+
+<p>Footnote 2: This is a long, diversionary footnote.  Probably its best
+to finish the rest of the document before reading.</p>
+
+<p>For some reason I find it useful/pleasurable/amusing to consider the
+question of monads in languages without scope at all.  Namely, stack
+languages like <a href="http://factorcode.org/" title="Factor Language">Factor</a> or <a href="http://www.latrobe.edu.au/philosophy/phimvt/joy/j02maf.html" title="Joy">Joy</a>.  Not only are these languages
+without scope, by default, variables are not even named.  Values are
+merely pushed onto and pulled off of a stack which is passed
+implicitly between "words," the analog of functions:</p>
+
+<pre><code>(require 'with-stack)
+(||| 4 4 + 3 -) ; -&gt; 5
+</code></pre>
+
+<p>Here we are using a stack language interpreter which lives inside
+emacs lisp.  You can get "with-stack.el" from my github.</p>
+
+<p>Without a means of binding variables, "lambdas" become merely
+"quotations," simple lists of literals and words which can be executed
+by words like <code>call</code>.</p>
+
+<pre><code>(||| 4 '(4 +) call '(3 -) call) ; -&gt; 5
+</code></pre>
+
+<p>In the "emacs stack language" quotation serves directly as the quote
+operator, and quotations are represented as lists.  Executing a
+quotation is the same looping over it, executing each word as it is
+encountered, or pushing atoms onto the stack.  </p>
+
+<p>The nakedness of these quotations encourages languages to use them as
+blocks in control structures:</p>
+
+<pre><code>(||| 1.0 1&gt;random* .5 &gt; '("true" print) '("false" print) if)
+</code></pre>
+
+<p>The above will print "true" 50% of the time and "false" 50% of the
+time.  I don't want to get bogged down with a full <code>with-stack</code>
+tutorial, but "1.0 1>random*" means "push 1.0 onto the stack and call
+the emacs lisp function <code>random*</code> with 1 argument from the stack,
+pushing the result".  The word <code>if</code> takes a boolean and two
+quotations, executing the first when the bool is true and the second
+when it is false.  </p>
+
+<p>Ok, so quotations are lambdas.  What are monadic quotations of the
+list monad?  These must be quotations which take a value off the stack
+and return a list of values.  The quotation version of <code>return</code> or the
+list monad would be:</p>
+
+<pre><code>(||| word: list-return 1&gt;list end:)
+</code></pre>
+
+<p>That is, take a value off the stack and return a list with that value
+in it.  </p>
+
+<p>What about <code>bind</code>?</p>
+
+<pre><code>(require 'stack-words)
+(||| word: list-bind ;( mv f (v ;; mv) ;; mv )
+     map '(append) reduce end:)
+</code></pre>
+
+<p>Characteristically, the word version is quite terse.  Interestingly,
+we hardly need to have an analog of do notation, because variables are
+not named and application is merely juxtaposition:</p>
+
+<pre><code>(||| word: bi&gt;list ;( item qtn1 qtn2 ;; ( res1 res2 ) )
+     bi 2&gt;list end:)
+(||| '(1 2 3) 
+     '( '(1 +) '(1 -) bi&gt;list )
+     list-bind
+     '( '(3 +) '(3 -) bi&gt;list )
+     list-bind) ;-&gt; (5 -1 3 -3 6 0 4 -2 7 1 5 -1)
+</code></pre>
+
+<p>(The word <code>bi&gt;list</code> takes an item and two quotations, applies the
+quotations each to the item and collects the results into a list of
+two elements.  It assumes the quotations take one item off and push
+one onto the stack.)</p>
+
+<p>Wherever we want to use monadic behavior, we simply replace <code>call</code>
+with <code>list-bind</code>.  We can write a word to make this more pleasant:</p>
+
+<pre><code>(||| word: fold-bind-into ; ( qtnseq bind-qtn ;; qtnseq )
+      '( curry ) curry map 1&gt;flatten-once end:)
+(||| word: monadically ; ( init-val qtnseq bind-qtn ;; result )
+       fold-bind-into call end:)
+
+(||| '(1 2 3)
+       {{ '( '(1 +) '(1 -) bi&gt;list )
+          '( '(3 +) '(3 -) bi&gt;list ) }}
+     '(list-bind) monadically )
+</code></pre>
+
+<p>Where <code>{{</code> is a parsing word which makes a list of what is on the
+stack between <code>{{</code> and <code>}}</code>.  We could have used quote to make the
+list of quotations, but we'd be getting a lot of quote marks on the
+screen.  All this word does is fold the contents of a binding
+quotation (here a simple call to <code>list-bind</code>) into the sequence of
+quotations we want to operate monadically.  Then we simply call the
+resulting quotation.  </p>
+
+<p>Assuming some comfort with the idioms of concatenative languages, the
+result is an incredibly simple demonstration of the essence of monadic
+operation.  It strikes me that it is often the lowest-level words
+which are the hardest to read and write in concatenative languages,
+while high level code has an almost comic simplicity.  I wonder what
+this means.  I wonder what this means?</p>
+
+<hr />

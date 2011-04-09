@@ -10,8 +10,11 @@ map 'append swap 2>apply end:)
 (|||p '(1 2 3) '('(2 +) '(2 -) bi 2>list) seq-bind
 '('(1 +) '(1 -) bi 2>list) seq-bind)
 
+(|||p '(2 +) )
 
+(|||p '(1 2 3 4) 4 '(+) curry map)
 
+(|||p '(list-bind) dup '(call) curry)
 
 (word: state-return ;( object -- qtn( stack -- {/ object stack  /} ))
 	   2>list)

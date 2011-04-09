@@ -1882,4 +1882,14 @@ which is the identity, by default."
   "Lambda, then byte-compile"
   `(byte-compile (lambda ,args ,@body)))
 
+(defun improper-suffix (list item)
+  "Place ITEM at the end of LIST as its CDR.  Returns a new, improper list."
+  (let* ((cp (copy-list list))
+		 (cp-cdr (cdr cp)))
+	(loop until ( = (length cp-cdr) 1) do
+		  (setq cp-cdr (cdr cp-cdr)))
+	(setf (cdr cp-cdr) item)
+	cp))
+
+
 (provide 'utils)
