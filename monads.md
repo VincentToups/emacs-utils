@@ -76,7 +76,7 @@ type isn't terribly important except that they are distinct from the
 type of *monadic values*. 
 
 A *monadic value* can be thought of as an abstract container which
-contains can regular values.  Sometimes this is a rather obvious kind
+contains regular values.  Sometimes this is a rather obvious kind
 of relationship.  A list "contains" values, for instance.  Sometimes
 it can be much more abstract.
 
@@ -711,7 +711,7 @@ when it is false.
 
 Ok, so quotations are lambdas.  What are monadic quotations of the
 list monad?  These must be quotations which take a value off the stack
-and return a list of values.  The quotation version of `return` or the
+and return a list of values.  The quotation version of `return` for the
 list monad would be:
 
     (||| word: list-return 1>list end:)
