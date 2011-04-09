@@ -768,7 +768,7 @@ result is an incredibly simple demonstration of the essence of monadic
 operation.  It strikes me that it is often the lowest-level words
 which are the hardest to read and write in concatenative languages,
 while high level code has an almost comic simplicity.  I wonder what
-this means.  I wonder what this means?
+this means?
 
 
 * * *
