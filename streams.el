@@ -259,4 +259,12 @@
 		:m-return #'stream-return
 		:m-zero nil))
 
+(setq normal-numbers 
+	  (mlet**_ monad-stream ((u (random-numbers 1.0))
+				(v (random-numbers 1.0 (make-random-state t))))
+			   (lexical-let ((r (sqrt (* -2 (log  u))))
+							 (s (* 2 pi v)))
+				 (stream (* r (cos s))
+						 (delay (stream (* r (sin s)) nil))))))
+
 

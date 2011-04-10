@@ -219,6 +219,8 @@ monad, but only admits unique results under PREDICATE.
 
 
 
+
+
 (defmacro mlet*-inner (binders &rest body)
   "Handles inner expansion of mlet*."
   (if (empty? binders)
@@ -247,6 +249,31 @@ let*."
 					  (funcall (tbl current-monad :m-return) v)))
 	   (mlet*-inner ,binders ,@body))))
 
+(defmacro* mlet** (monad binders &body body)
+  "Performs the bindings in BINDERS in the monad MONAD, finally
+executing BODY in an implicit m-return.  In the dynamic contex,
+m-return, m-bind and m-zero are bound.  >>= is a synonym for
+m-bind.  Binders are standard elisp binder syntax, just like a
+let*.  This also lexical-lets the monad functions so that delayed
+compuations behave apropriately, even without a domonad
+enclosure."
+  `(let ((current-monad ,monad))
+	 (lexical-let ((current-monad current-monad))
+	   (flet ((m-bind (v f) 
+					  (funcall (tbl current-monad :m-bind) v f))
+			  (>>= (v f)
+				   (funcall (tbl current-monad :m-bind) v f))
+			  (m-return (v)
+						(funcall (tbl current-monad :m-return) v)))
+		 (labels ((m-bind (v f) 
+						  (funcall (tbl current-monad :m-bind) v f))
+				  (>>= (v f)
+					   (funcall (tbl current-monad :m-bind) v f))
+				  (m-return (v)
+							(funcall (tbl current-monad :m-return) v)))
+		   (mlet*-inner ,binders ,@body))))))
+
+
 (defmacro mlet*_-inner (binders &rest body)
   (if (empty? binders)
 	  `(progn ,@body)
@@ -269,6 +296,25 @@ let*."
 			(m-return (v)
 					  (funcall (tbl current-monad :m-return) v)))
 	   (mlet*_-inner ,binders ,@body))))
+
+(defmacro* mlet**_ (monad binders &body body)
+  "Exactly like mlet* except that body is not wrapped in an implicit m-return."
+  `(let ((current-monad ,monad))
+	 (lexical-let ((current-monad current-monad))
+	   (flet ((m-bind (v f) 
+					  (funcall (tbl current-monad :m-bind) v f))
+			  (>>= (v f)
+				   (funcall (tbl current-monad :m-bind) v f))
+			  (m-return (v)
+						(funcall (tbl current-monad :m-return) v)))
+		 (labels ((m-bind (v f) 
+						  (funcall (tbl current-monad :m-bind) v f))
+				  (>>= (v f)
+					   (funcall (tbl current-monad :m-bind) v f))
+				  (m-return (v)
+							(funcall (tbl current-monad :m-return) v)))
+		   (mlet*_-inner ,binders ,@body))))))
+
 
 (defun check-monad-binders (binder)
   (if (not (vectorp binder)) (error "domonad-like forms need a vector for its bind forms."))
