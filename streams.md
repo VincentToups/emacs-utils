@@ -800,7 +800,7 @@ I've implemented a slightly more complex version of the peg puzzle
 problem so that we end up with not just a stream of solved puzzles,
 but a stream of solved puzzles AND the included solution as a list of
 instructions.  It's too length to reproduce here, but you can see the
-code:
+code [here][peg-puzzle].
 
 
 
@@ -830,3 +830,4 @@ Footnote 2: Deftype produces a type which is unfortunately true under
 `vectorp`.  Too bad. 
 
 [emacs-utils]: https://github.com/VincentToups/emacs-utils "Emacs Utils"
+[peg-puzzle]: https://github.com/VincentToups/emacs-utils/blob/master/examples/peg-puzzle-streams.el "Peg Puzzle"
