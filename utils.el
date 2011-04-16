@@ -1891,6 +1891,51 @@ which is the identity, by default."
 	(setf (cdr cp-cdr) item)
 	cp))
 
+(defun dip-cdr (f cell)
+  "Apply f to the CDR of CELL, return (CONS (CAR CELL) (FUNCALL F CDR))."
+  (cons (car cell) (funcall f (cdr cell))))
+
+(defun dip-car (f cell)
+  "Apply f to the CAR of CELL, return (CONS (FUNCALL F (CAR CELL)) (CDR CELL))."
+  (cons (funcall (car cell)) (cdr cell)))
+
+(defun f-dip-cdr (f)
+  "Take f and return a new function which operates on the CDR of a cons cell, returning a new cons."
+  (lexical-let ((f f))
+	(lambda (&rest cell)
+	  (dip-cdr f cell))))
+
+(defun f-dip-car (f)
+  "Take f and return a new function which operates on the CAR of a cons cell, returning a new cons."
+  (lexical-let ((f f))
+	(lambda (&rest cell)
+	  (dip-car f cell))))
+
+(defun hours-minutes-seconds (seconds)
+  "Converts a number of seconds to a list of HOURS MINUTES and SECONDS."
+  (cond ((< seconds 60) (list 0 0 seconds))
+		((< seconds (* 60 60)) 
+		 (let* ((minutes (floor (/ seconds 60)))
+				(rem (- seconds (* minutes 60))))
+		   (list 0 minutes rem)))
+		(t
+		 (let* ((hours (floor (/ seconds (* 60 60))))
+				(rem (- seconds (* hours (* 60 60)))))
+		   (cons hours (cdr (hours-minutes-seconds rem)))))))
+
+(defun small-time-diff (t1 t2)
+  "Pulls out the seconds in a time difference and returns the
+result.  Only works if the difference would fit in 16 bits."
+  (cadr (time-subtract t1 t2)))
+
+(defmacro tick-tock (&rest body)
+  "Execute BODY, returning the result in a VALUES list with the elapsed time."
+  (with-gensyms (tick result)
+				`(let ((,tick (current-time))
+					   (,result 
+						(progn 
+						  ,@body)))
+				   (values ,result (hours-minutes-seconds (small-time-diff (current-time) ,tick))))))
 
 
 (provide 'utils)

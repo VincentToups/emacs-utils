@@ -27,6 +27,9 @@
 
 (defun in-set (object set)
   ($ object in (values-of-set set) (predicate-of-set set)))
+(defun add-to-set (set object)
+  (if (in-set object set) set
+	(alist-cons set :values object)))
 
 (defun set-intersection (set1 set2)
   (check-set-compat set1 set2)

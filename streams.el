@@ -1,11 +1,41 @@
 (require 'cl)
 (require 'recur)
 (require 'functional)
+(require 'monads)
 (provide 'streams)
 
 (defstruct stream head future)
 (defun stream (hd &optional future)
   (make-stream :head hd :future future))
+
+(defun single-symbol-list? (item)
+  (and (listp item)
+	   (= (length item) 1)
+	   (symbolp (car item))))
+(defun binderish? (item)
+  (and (listp item)
+	   (= (length item) 2)
+	   (symbolp (car item))))
+
+(defun with-form->binder (item)
+  (cond ((symbolp item )(list item item))
+		((listp item)
+		 (cond ((single-symbol-list? item)
+				(cons (car item) item))
+			   ((binderish? item)
+				item)
+			   (t (error "with-forms require symbols, a single symbol list, or a binder-like expression.  Got %S." item))))
+		(t (error "with-forms require symbols, a single symbol list, or a binder-like expression.  Got %S." item))))
+
+(defmacro* later (expr &key (with nil) (with* nil))
+  (cond (with 
+		 `(lexical-let ,(mapcar #'with-form->binder with)
+			(later ,expr :with* ,with*)))
+		(with* 
+		 `(lexical-let* ,(mapcar #'with-form->binder with*)
+			(later ,expr)))
+		(t `(lambda () ,expr))))
+
 
 (defun scar (stream)
   (cond ((not stream) nil)
@@ -58,7 +88,7 @@
 		 (let ((,(car (car =a-f=expressions)) (scar ,stream%))
 			   (,(cadr (car =a-f=expressions)) (stream-future ,stream%)))
 		   ,@(cdr =a-f=expressions)))
-		(t (error "Couldn't figure out what to do with stream %S.  This should never happen." stream%))))))
+		(t (error "Couldn't figure out what to do with stream %S.  This should never happen." ,stream%))))))
 
  (defmacro lex-stream-case (stream
 							nil-case
@@ -78,21 +108,21 @@
 		 (lexical-let ((,(car (car =a-f=expressions)) (scar ,stream%))
 					   (,(cadr (car =a-f=expressions)) (stream-future ,stream%)))
 		   ,@(cdr =a-f=expressions)))
-		(t (error "Couldn't figure out what to do with stream %S.  This should never happen." stream%))))))
+		(t (error "Couldn't figure out what to do with stream %S.  This should never happen." ,stream%))))))
 
  )
 
 (recur-defun* take-n (stream n &optional acc)
   (if (= n 0) (reverse acc)
 	(stream-case stream
-				 (reverse acc)
+				 ((reverse acc))
 				 ((a) (reverse (cons a acc)))
 				 ((a f) (recur (funcall f) (- n 1) (cons a acc))))))
 
 
 (defun smapcar (f stream)
   (stream-case stream
-			   nil
+			   (nil)
 			   ((a) (stream (funcall f a) nil))
 			   ((a future) 
 				(lexical-let ((future future)
@@ -102,15 +132,15 @@
 
 (defun smapcar2 (f-of-2 stream1 stream2)
   (stream-case stream1
-			   nil
+			   (nil)
 			   ((a) (stream-case stream2
-								 nil
+								 (nil)
 								 ((b) (stream (funcall f-of-2 a b) nil))
 								 ((b g)
 								  (stream (funcall f-of-2 a b) nil))))
 			   ((a f)
 				(stream-case stream2 
-							 nil
+							 (nil)
 							 ((b) (stream (funcall f-of-2 a b) nil))
 							 ((b g)
 							  (lexical-let ((f-of-2 f-of-2)
@@ -169,9 +199,9 @@
 (defun stream-cat (stream1 stream2)
   (stream-case 
    stream1
-   stream2
+   (stream2)
    ((a) (stream-case stream2 
-					 (stream a nil)
+					 ((stream a nil))
 					 ((b) (stream a (lexical-let ((b b)) 
 									  (lambda () (stream b nil)))))
 					 ((b g)
@@ -180,7 +210,7 @@
 								  (lambda () (stream b g)))))))
    ((a f)
 	(stream-case stream2
-				 (stream a f)
+				 ((stream a f))
 				 ((b) (stream a 
 							  (lexical-let ((f f)
 											(stream2 stream2))
@@ -194,9 +224,9 @@
 (defun stream-interleave (stream1 stream2)
   (stream-case
    stream1
-   stream2
+   (stream2)
    ((a) (stream-case stream2
-					 (stream a nil)
+					 ((stream a nil))
 					 ((b) (stream a (lexical-let ((b b)) (lambda () (stream b nil)))))
 					 ((b g) (stream a 
 									(lexical-let ((b b)
@@ -204,7 +234,7 @@
 									  (lambda () (stream b g)))))))
    ((a f)
 	(stream-case stream2
-				 (stream a f)
+				 ((stream a f))
 				 ((b) (stream a
 							  (lexical-let ((b b)
 											(f f))
@@ -221,50 +251,93 @@
 (recur-defun* stream-map-cat (mf stream)
   (lexical-let ((mf mf))
 	(stream-case stream
-				 nil
+				 (nil)
 				 ((a) (funcall mf a))
 				 ((a f) 
 				  (lexical-let ((interior-stream (funcall mf a))
 								(f f))
 					(stream-case 
- 					 interior-stream
-					 (recur mf (funcall f))
+					 interior-stream
+					 ((recur mf (funcall f)))
 					 ((b) (stream b 
-								  (delay
+								  (later
 								   (stream-map-cat mf (funcall f)))))
 					 ((b g) (stream b
-									(lexical-let ((g g))
-									  (delay 
-									   (stream-cat (funcall g)
+									(lexical-let ((gg g))
+									  (later 
+									   (stream-cat (funcall gg)
 												   (stream-map-cat mf (funcall f)))))))))))))
 
-
-
-
-
-(defmacro delay (&rest body)
-  `(lambda () ,@body))
-
-(defmacro delay-stream (a &rest body)
-  `(stream ,a (delay ,@body)))
+(recur-defun* stream-map-interleave (mf stream)
+  (lexical-let ((mf mf))
+	(stream-case stream 
+				 (nil)
+				 ((a) (funcall mf a))
+				 ((a f)
+				  (lexical-let ((interior-stream (funcall mf a))
+								(f f))
+					(stream-case interior-stream
+								 ((recur mf (funcall f)))
+								 ((b) (stream b
+											  (later
+											   (stream-map-interleave mf (funcall f)))))
+								 ((b g) (stream b
+												(lexical-let ((g g))
+												  (later
+												   (stream-interleave (funcall g)
+																	  (stream-map-cat mf (funcall f)))))))))))))
 
 
 (defun stream-bind (v f)
   (stream-map-cat f v))
+(defun stream-bind^i (v f)
+  (stream-map-interleave f v))
 (defun stream-return (x)
   (stream x nil))
 
 (setq monad-stream 
-  (tbl! :m-bind #'stream-bind
-		:m-return #'stream-return
-		:m-zero nil))
+	  (tbl! :m-bind #'stream-bind
+			:m-return #'stream-return
+			:m-zero nil))
+
+(setq monad-stream^i 
+	  (tbl! :m-bind #'stream-bind^i
+			:m-return #'stream-return
+			:m-zero nil))
+
+(defun map-inf (n p stream)
+  (mapcar p (take-n stream n)))
+
 
 (setq normal-numbers 
 	  (mlet**_ monad-stream ((u (random-numbers 1.0))
-				(v (random-numbers 1.0 (make-random-state t))))
+							 (v (random-numbers 1.0 (make-random-state t))))
 			   (lexical-let ((r (sqrt (* -2 (log  u))))
 							 (s (* 2 pi v)))
 				 (stream (* r (cos s))
-						 (delay (stream (* r (sin s)) nil))))))
+						 (later (stream (* r (sin s)) nil))))))
 
+(defun list->stream (list)
+  (stream (car list)
+		  (let-if rest (cdr list)
+				  (later (list->stream rest) :with (rest))
+				  nil)))
 
+(recur-defun* take-until (stream predicate &optional acc)
+  (stream-case stream
+			   ((reverse acc))
+			   ((a) (if (funcall predicate a) (reverse (cons a acc)) (reverse acc)))
+			   ((a f)
+				(if 
+					(funcall predicate a)
+					(reverse (cons a acc))
+				  (recur (scdr stream) predicate (cons a acc))))))
+
+(recur-defun* remove-until (stream predicate)
+  (stream-case stream
+			   (nil)
+			   ((a)
+				(if (funcall predicate a) (stream a nil) nil))
+			   ((a f)
+				(if (funcall predicate a) stream 
+				  (recur (scdr stream) predicate)))))

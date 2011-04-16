@@ -428,8 +428,21 @@
 	(push-stack `(quote (defstackword ,name (|||- ,@body))))
 	))
 
-
-
+(defstackword-immediate immediate-word: 
+  (let* ((name (pop-stack))
+		 (body 
+		  (loop while (not (eq 'end: (car *stack*))) 
+				collect (prog1 
+							(pop-stack)
+						  (if (= 0 (length *stack*)) (error (format "stack: Couldn't find the end of the stack-word: %s" name)))))))
+	(pop-stack)
+	;; (eval `(defstackword ,name (|||- ,@body)))
+	;; (eval `(byte-compile ',(internf "stack-%s-" name)))
+	(push-stack '1>eval)
+	(push-stack `(quote (byte-compile ',(internf "stack-%s-" name))))
+	(push-stack '1>eval)
+	(push-stack `(quote (defstackword-immediate ,name (|||- ,@body))))
+	))
 
 (defmacro assert-stack-predicates (predicates word-name)
   "Takes a list of PREDICATES and a WORD-NAME for error message generation, and checks each item on the stack in the same order as predicates.  Generate an error on failure."

@@ -85,36 +85,48 @@
 		(begin (pop-stack)))
 	(push-stack (split-by-match begin end (pop-stack)))))
 
-	 (defstackword-immediate {/
-	   (let ((result (split-by-match '{/ '/} (cons '{/ *stack*))))
-		 (if (None? result) (error "Unmatched {/ during immediate word {/")
-		   (let-seq (quot rest) (MaybeVal result)
-					(db-print quot)
-					(db-print rest)
-					(setq *stack* rest)
-					(print *stack*)
-					(push `(quote ,quot) *stack*)
-					(print *stack*)))))
+(defstackword-immediate {/
+  (let ((result (split-by-match '{/ '/} (cons '{/ *stack*))))
+	(if (None? result) (error "Unmatched {/ during immediate word {/")
+	  (let-seq (quot rest) (MaybeVal result)
+			   (db-print quot)
+			   (db-print rest)
+			   (setq *stack* rest)
+			   (print *stack*)
+			   (push `(quote ,quot) *stack*)
+			   (print *stack*)))))
 
-	 (defstackword-immediate {-
-	   (let ((result (split-by-match '{- '-} (cons '{- *stack*))))
-		 (if (None? result) (error "Unmatched {- during immediate word {-")
-		   (let-seq (contents future) (MaybeVal result)
-					(let ((head (car contents))
-						  (tail (cdr contents)))
-					  (setq *stack* (append (suffix tail head) future)))))))
-	 
+(defstackword-immediate {
+  (let ((result (split-by-match '{ '} (cons '{ *stack*))))
+	(if (None? result) (error "Unmatched { during immediate word {")
+	  (let-seq (quot rest) (MaybeVal result)
+			   (db-print quot)
+			   (db-print rest)
+			   (setq *stack* rest)
+			   (print *stack*)
+			   (push `(quote ,quot) *stack*)
+			   (print *stack*)))))
 
-	 (defstackword list-until  
-	   (let ((sentinal (pop *stack*)))
-		 (loop with output = nil 
-			   while (not (eq (car *stack*) sentinal))
-			   do
-			   (if *stack* (setq output (cons (pop *stack*) output))
-				 (error "Couldn't find sentinal."))
-			   finally 
-			   (pop *stack*)
-			   (push output *stack*))))
+
+(defstackword-immediate {-
+  (let ((result (split-by-match '{- '-} (cons '{- *stack*))))
+	(if (None? result) (error "Unmatched {- during immediate word {-")
+	  (let-seq (contents future) (MaybeVal result)
+			   (let ((head (car contents))
+					 (tail (cdr contents)))
+				 (setq *stack* (append (suffix tail head) future)))))))
+
+
+(defstackword list-until  
+  (let ((sentinal (pop *stack*)))
+	(loop with output = nil 
+		  while (not (eq (car *stack*) sentinal))
+		  do
+		  (if *stack* (setq output (cons (pop *stack*) output))
+			(error "Couldn't find sentinal."))
+		  finally 
+		  (pop *stack*)
+		  (push output *stack*))))
 
 (defstackword-immediate {{ 
   (let ((result (split-by-match '{{ '}} (cons '{{ *stack*)))
@@ -173,6 +185,8 @@
 (defstackword drop-all 
   (setq *stack* nil))
 
-(bivalent-stack-words append suffix prefix)
-(univalent-stack-word listp)
+(defstackword swons (|||- swap cons))
+
+(bivalent-stack-words append suffix prefix elt)
+(univalent-stack-words listp not)
 (provide 'stack-words)

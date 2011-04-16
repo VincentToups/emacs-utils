@@ -38,6 +38,15 @@
 			   (funcall f (MaybeVal v)))))
   "The MAYBE monad.  See Just, None, None?, and MaybeVal.")
 
+(defvar monad-maybe^i
+  (tbl!
+   :m-zero nil
+   :m-return (lambda (x) x)
+   :m-bind (lambda (v f)
+			 (if (not v) v
+			   (funcall f v))))
+  "The (implicit) MAYBE monad.  NIL indicates failure.  MaybeVal is the identity.  Just is the identity.")
+
 (defun m-Error (arg)
   `(Error ,arg))
 
@@ -124,9 +133,25 @@ transforms it out of other such functions.")
    :m-bind (lambda (v f) (apply #'append (mapcar f v))))
   "The list/sequence monad.  Combine computations over multiple possibilities.")
 
+(defun map-cat-or-suffix (f lst)
+  "Like mapcat, but turns non-list elements into lists if they are encountered."
+  (loop for item in 
+		(if (listp lst) lst 
+			(list lst))
+		append
+		(let ((result (funcall f item)))
+		  (if (listp result) result
+			(list result)))))
 
-
-
+(defvar monad-seq^i
+  (tbl! 
+   :m-zero (list)
+   :m-return (lambda (x) (list x))
+   :m-bind (lambda (v f) (map-cat-or-suffix f v)))
+  "The implicit list/sequence monad.  Combine computations over
+  multiple possibilities.  Bind handles promoting single results
+  to lists.  If you want to include a list, you have to m-return
+  it explicitly. ")
 
 (defun monad-set (predicate)
   "Returns a SET-MONAD with PREDICATE semantics.  
@@ -153,6 +178,51 @@ monad, but only admits unique results under PREDICATE.
 	 :m-zero (list)
 	 :m-return (lambda (x) (list x))
 	 :m-bind (lambda (v f) (unique (apply #'append (mapcar f v)) lpred)))))
+
+(defun map-cat-or-suffix-set (f lst predicate)
+  (let ((memo-table (make-hash-table :test predicate)))
+	(flet ((memo (item)
+				 (puthash item t memo))
+		   (not-seen (item)
+					 (if (not (gethash item memo-table))
+						 (prog1 t (puthash item t memo-table))
+					   nil)))
+	  (loop for item in
+			(if (listp lst) lst (list lst))
+			append
+			(let ((res (funcall f item)))
+			  (cond ((listp res)
+					 (filter #'not-seen res))
+					(t
+					 (if (not-seen res) (list res) nil))))))))
+
+
+(defun monad-set^i (predicate)
+  "Returns a SET-MONAD with PREDICATE semantics.  
+This is similar to the sequence
+monad, but only admits unique results under PREDICATE.
+
+ (domonad (monad-set #'=)
+          [x '(1 2 3)
+           y '(1 2 3)]
+      (+ x y))
+
+ yields: (2 3 4 5 6)
+
+ (domonad monad-seq
+          [x '(1 2 3)
+           y '(1 2 3)]
+      (+ x y))
+ 
+ yields: (2 3 4 3 4 5 4 5 6)
+
+"
+  (lexical-let ((lpred predicate))
+	(tbl! 
+	 :m-zero (list)
+	 :m-return (lambda (x) (list x))
+	 :m-bind (lambda (v f) (map-cat-or-suffix-set f v lpred)))))
+
 
 (defun m-m-bind (monad v f)
   "Call the bind function in MONAD with args V and F."

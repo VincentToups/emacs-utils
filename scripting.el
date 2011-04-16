@@ -64,10 +64,10 @@
 
 (defun file-name-flatten-with (filename rep)
   (join (filter 
-   (lambda (x) (not (or (eq x nil) (string= x "")
-						(string= x " ") (string= x ".")
-						(string= x ".."))))
-   (split-string filename "/") ) rep))
+		 (lambda (x) (not (or (eq x nil) (string= x "")
+							  (string= x " ") (string= x ".")
+							  (string= x ".."))))
+		 (split-string filename "/") ) rep))
 
 (defun* pluck (filename &optional (n-in 0))
   (let* ((loc-parts (reverse (split-string (file-loc filename) "/")))
@@ -87,7 +87,42 @@
 (defun remove-string (string string-to-remove)
   (replace-string-in-string string-to-remove "" string))
 
+(defun rename-file-if-different (file new-name &rest args)
+  (if (not (string= file new-name)) 
+	  (apply #'rename-file file new-name args)
+	nil))
 
+(defun* remove-spaces (filename &optional (rep "_"))
+  (rename-file-if-different filename 
+							(replace-regexp-in-string
+							 (rx whitespace)
+							 rep
+							 filename)))
+
+(defmacro with-working-directory (dir &rest body)
+  (with-gensyms (hold-dir%)
+				`(let ((,hold-dir% (wd)))
+				   (unwind-protect
+					   (progn 
+						 (cd ,dir)
+						 ,@body)
+					 (cd ,hold-dir%)))))
+
+(defun* remove-spaces-in-dir (directory)
+  (with-working-directory directory
+						  (loop for f in (sh "ls -1")
+								do
+								(remove-spaces f))))
+
+(defun remove-spaces-in-tree (root)
+  (with-working-directory root
+						  (remove-spaces-in-dir (wd))
+						  (let ((sub-dirs
+								 (filter #'directoryp 
+										 (sh "ls -1"))))
+							(loop for s in sub-dirs do
+								  (print s)
+								  (remove-spaces-in-tree s)))))
 
 (provide 'scripting)
 

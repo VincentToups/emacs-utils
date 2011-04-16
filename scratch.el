@@ -3,9 +3,29 @@
 
 
 (||| 
-word: seq-return 1>list end:
-word: seq-bind ; (list func)
-map 'append swap 2>apply end:)
+ word: seq-return 1>list end:
+ word: seq-bind ; (list func)
+ map 'append swap 2>apply end:)
+
+(|||p { {{ 1 2 3 4 }} 
+	  { { 1 + } { 1 - } bi 2>list }
+	  { + 1>list }
+
+      '(list-bind)
+	  do-monadically )
+
+{{ 1 2 3 4 }} q1 bind
+with
+q1 { { { 1 + } { 1 - } bi 2>list } q2 bind }
+with 
+q2 { + 1>list }
+      
+
+	  (bind '(1 2 3 4) 
+			(lambda (x1) 
+			  (bind (list (+ x1 1) (- x1 1))
+                (lambda (x2) 
+                       (m-return (+ x1 x2))))))
 
 (|||p '(1 2 3) '('(2 +) '(2 -) bi 2>list) seq-bind
 '('(1 +) '(1 -) bi 2>list) seq-bind)
