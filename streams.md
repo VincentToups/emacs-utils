@@ -747,7 +747,7 @@ There are several ways to get them if you have uniform distributions.
 One way is to take the average of many uniformly distributed numbers.
 These averages will have a Gaussian distribution which can be scaled
 to whatever standard deviation is desired.  A way which is less
-computationally intensive, however, is the Box-Mueller transformation,
+computationally intensive, however, is the Box-Miller transformation,
 which takes two independent distributions of uniformly distributed
 numbers and returns two distributions of Guassian numbers.  If `u` and
 `v` are uniformly distributed, then 
