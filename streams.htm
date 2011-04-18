@@ -363,7 +363,7 @@ in several ways.</p>
 
 <pre><code>(later 10) ;-&gt; (lambda () 10)
 (let ((x 10))
-  (later 10 :with (x))) -&gt; (let ((x 10))
+  (later x :with (x))) -&gt; (let ((x 10))
                             (lexical-let ((x x))
                              (lambda () x )))
 (let ((x 10)) 
@@ -650,8 +650,8 @@ interesting streams.</p>
                       (funcall g))))))))))
 </code></pre>
 
-<p>With <code>smapcar2</code> we can finally things like the stream of Fibonacci
-Numbers:</p>
+<p>With <code>smapcar2</code> we can finally create things like the stream of
+Fibonacci Numbers:</p>
 
 <pre><code>(defvar fibs (stream 1
                       (later 
@@ -698,7 +698,7 @@ operation.  We can define <code>stream-cat</code> by itself:</p>
                             (lambda () (stream-cat (funcall f) stream2)))))))))
 </code></pre>
 
-<p>This function is a doozy, but the upshot is simple.  If either stream
+<p>This function is a doozy (see Footnote 3), but the upshot is simple.  If either stream
 is empty, we return the other stream, obviously.  Otherwise we lazily
 pass stream two down stream one, until we find the tail of stream one,
 whereupon we fasten stream two.  A call to stream cat doesn't
@@ -774,7 +774,7 @@ There are several ways to get them if you have uniform distributions.
 One way is to take the average of many uniformly distributed numbers.
 These averages will have a Gaussian distribution which can be scaled
 to whatever standard deviation is desired.  A way which is less
-computationally intensive, however, is the Box-Mueller transformation,
+computationally intensive, however, is the Box-Miller transformation,
 which takes two independent distributions of uniformly distributed
 numbers and returns two distributions of Guassian numbers.  If <code>u</code> and
 <code>v</code> are uniformly distributed, then </p>
@@ -787,10 +787,18 @@ s = sqrt(-2*log u)*sin(2 pi v)
 If we don't care about the seeds in particular, only that they are
 different, we can create a stream of Guassian numbers like so:</p>
 
-<pre><code>(setq normal-numbers 
-      (mlet**_ monad-stream ((u (random-numbers 1.0))
-                             (v (random-numbers 1.0 (make-random-state t))))
-               (lexical-let ((r (sqrt (* -2 (log  u))))
+<pre><code>(defun zip-streams (&amp;rest streams)
+  (apply #'smapcar* #'list streams))
+
+
+(setq normal-numbers 
+      (mlet**_ monad-stream ((pair
+                  (zip-streams (random-numbers 1.0)
+                               (random-numbers 1.0
+                     (make-random-state t)))))
+               (lexical-let ((u (car pair))
+                             (v (car pair))
+                             (r (sqrt (* -2 (log  u))))
                              (s (* 2 pi v)))
                  (stream (* r (cos s))
                          (later (stream (* r (sin s)) nil))))))
@@ -853,3 +861,47 @@ always modifying their behavior to fit the input types anyway.</p>
 
 <p>Footnote 2: Deftype produces a type which is unfortunately true under
 <code>vectorp</code>.  Too bad. </p>
+
+<p>Footnote 3: 
+The function shown here is technically correct, in terms of the final
+values that appear in the stream and where.  However, it is not as
+lazy as it could be.  The key recognition is that, while <code>mf</code> is not
+the tail of a stream, the partial application of <code>mf</code> to <code>a</code> is a
+function which takes no arguments and returns a stream.  That is,
+<code>(lambda () (funcall mf a))</code> is an acceptable stream tail, and we
+don't need to evaluate <code>mf a</code> to use it as such.  The following code
+implements this fully lazy version of <code>stream-map-cat</code>, here called
+<code>stream-map-cat-tail</code>.  The only thing you need to understand in
+addition to the above is that <code>par</code> in the following code stands for
+<code>partially apply on the righ</code>.  </p>
+
+<pre><code>(defun stream-cat-tail (head-stream tail)
+  (if (stream? head-stream)
+      (stream-case head-stream
+                   ((funcall tail))
+                   ((a) (stream a tail))
+                   ((a f)
+                    (stream a 
+                            (later 
+                             (stream-cat-tail (funcall f) tail) :with (f tail)))))
+    (stream-cat-tail (funcall head-stream) tail)))
+
+(defun* stream-map-cat-tail (mf instream)
+  (stream-case instream
+               (nil)
+               ((a) (funcall mf a))
+               ((a f)
+                (let ((tail (par mf a)))
+                  (stream-cat-tail tail
+                                   (later
+                                    (stream-map-cat-tail mf (funcall f))
+                                    :with (mf f)))))))
+</code></pre>
+
+<p><code>stream-cat-tail</code> pins the function <code>tail</code> at the end of the stream
+<code>head-stream</code>.  It turns out to be convenient to pass functions
+returning streams into the <code>head-stream</code> position, so this function
+checks for that case and extracts the head stream if needed.  The
+library actually uses these functions rather than the slightly less
+lazy version in the tutorial body.  I found that version easier to
+understand at first.</p>

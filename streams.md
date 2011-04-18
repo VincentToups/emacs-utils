@@ -351,7 +351,7 @@ in several ways.
 
     (later 10) ;-> (lambda () 10)
     (let ((x 10))
-      (later 10 :with (x))) -> (let ((x 10))
+      (later x :with (x))) -> (let ((x 10))
                                 (lexical-let ((x x))
                                  (lambda () x )))
     (let ((x 10)) 
@@ -626,8 +626,8 @@ interesting streams.
                          (lambda () (smapcar2 f-of-2 (funcall f)
                           (funcall g))))))))))
 
-With `smapcar2` we can finally things like the stream of Fibonacci
-Numbers:
+With `smapcar2` we can finally create things like the stream of
+Fibonacci Numbers:
 
     (defvar fibs (stream 1
                           (later 
@@ -673,7 +673,7 @@ operation.  We can define `stream-cat` by itself:
                                             (stream2 stream2))
                                 (lambda () (stream-cat (funcall f) stream2)))))))))
 
-This function is a doozy, but the upshot is simple.  If either stream
+This function is a doozy (see Footnote 3), but the upshot is simple.  If either stream
 is empty, we return the other stream, obviously.  Otherwise we lazily
 pass stream two down stream one, until we find the tail of stream one,
 whereupon we fasten stream two.  A call to stream cat doesn't
@@ -759,10 +759,18 @@ numbers and returns two distributions of Guassian numbers.  If `u` and
 If we don't care about the seeds in particular, only that they are
 different, we can create a stream of Guassian numbers like so:
 
+    (defun zip-streams (&rest streams)
+      (apply #'smapcar* #'list streams))
+
+
     (setq normal-numbers 
-          (mlet**_ monad-stream ((u (random-numbers 1.0))
-                                 (v (random-numbers 1.0 (make-random-state t))))
-                   (lexical-let ((r (sqrt (* -2 (log  u))))
+          (mlet**_ monad-stream ((pair
+		              (zip-streams (random-numbers 1.0)
+                                   (random-numbers 1.0
+                         (make-random-state t)))))
+                   (lexical-let ((u (car pair))
+                                 (v (car pair))
+                                 (r (sqrt (* -2 (log  u))))
                                  (s (* 2 pi v)))
                      (stream (* r (cos s))
                              (later (stream (* r (sin s)) nil))))))
@@ -828,6 +836,49 @@ always modifying their behavior to fit the input types anyway.
 
 Footnote 2: Deftype produces a type which is unfortunately true under
 `vectorp`.  Too bad. 
+
+Footnote 3: 
+The function shown here is technically correct, in terms of the final
+values that appear in the stream and where.  However, it is not as
+lazy as it could be.  The key recognition is that, while `mf` is not
+the tail of a stream, the partial application of `mf` to `a` is a
+function which takes no arguments and returns a stream.  That is,
+`(lambda () (funcall mf a))` is an acceptable stream tail, and we
+don't need to evaluate `mf a` to use it as such.  The following code
+implements this fully lazy version of `stream-map-cat`, here called
+`stream-map-cat-tail`.  The only thing you need to understand in
+addition to the above is that `par` in the following code stands for
+`partially apply on the righ`.  
+
+    (defun stream-cat-tail (head-stream tail)
+      (if (stream? head-stream)
+          (stream-case head-stream
+                       ((funcall tail))
+                       ((a) (stream a tail))
+                       ((a f)
+                        (stream a 
+                                (later 
+                                 (stream-cat-tail (funcall f) tail) :with (f tail)))))
+        (stream-cat-tail (funcall head-stream) tail)))
+
+    (defun* stream-map-cat-tail (mf instream)
+      (stream-case instream
+                   (nil)
+                   ((a) (funcall mf a))
+                   ((a f)
+                    (let ((tail (par mf a)))
+                      (stream-cat-tail tail
+                                       (later
+                                        (stream-map-cat-tail mf (funcall f))
+                                        :with (mf f)))))))
+
+`stream-cat-tail` pins the function `tail` at the end of the stream
+`head-stream`.  It turns out to be convenient to pass functions
+returning streams into the `head-stream` position, so this function
+checks for that case and extracts the head stream if needed.  The
+library actually uses these functions rather than the slightly less
+lazy version in the tutorial body.  I found that version easier to
+understand at first.
 
 [emacs-utils]: https://github.com/VincentToups/emacs-utils "Emacs Utils"
 [peg-puzzle]: https://github.com/VincentToups/emacs-utils/blob/master/examples/peg-puzzle-streams.el "Peg Puzzle"

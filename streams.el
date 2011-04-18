@@ -248,25 +248,59 @@
 							  (stream-interleave 
 							   (stream b g) (funcall f))))))))))
 
-(recur-defun* stream-map-cat (mf stream)
-  (lexical-let ((mf mf))
-	(stream-case stream
-				 (nil)
-				 ((a) (funcall mf a))
-				 ((a f) 
-				  (lexical-let ((interior-stream (funcall mf a))
-								(f f))
-					(stream-case 
-					 interior-stream
-					 ((recur mf (funcall f)))
-					 ((b) (stream b 
-								  (later
-								   (stream-map-cat mf (funcall f)))))
-					 ((b g) (stream b
-									(lexical-let ((gg g))
-									  (later 
-									   (stream-cat (funcall gg)
-												   (stream-map-cat mf (funcall f)))))))))))))
+(defun stream-cat-tail (head-stream tail)
+  (if (stream? head-stream)
+	  (stream-case head-stream
+				   ((funcall tail))
+				   ((a) (stream a tail))
+				   ((a f)
+					(stream a 
+							(later 
+							 (stream-cat-tail (funcall f) tail) :with (f tail)))))
+	(stream-cat-tail (funcall head-stream) tail)))
+
+(defun* stream-map-cat-tail (mf instream)
+  (stream-case instream
+			   (nil)
+			   ((a) (funcall mf a))
+			   ((a f)
+				(let ((tail (par mf a)))
+				  (stream-cat-tail tail
+								   (later
+									(stream-map-cat-tail mf (funcall f))
+									:with (mf f)))))))
+
+
+;; (recur-defun* stream-map-cat (mf stream)
+;;   (lexical-let ((mf mf))
+;; 	(stream-case stream
+;; 				 (nil)
+;; 				 ((a) (funcall mf a))
+;; 				 ((a f) 
+;; 				  (lexical-let ((interior-stream (funcall mf a))
+;; 								(f f))
+;; 					(stream-case 
+;; 					 interior-stream
+;; 					 ((recur mf (funcall f)))
+;; 					 ((b) (stream b 
+;; 								  (later
+;; 								   (stream-map-cat mf (funcall f)))))
+;; 					 ((b g) (stream b
+;; 									(lexical-let ((gg g))
+;; 									  (later 
+;; 									   (stream-cat (funcall gg)
+;; 												   (stream-map-cat mf (funcall f)))))))))))))
+
+(defun* stream-map-cat (mf instream)
+  (stream-case instream
+			   (nil)
+			   ((a) (funcall mf a))
+			   ((a f)
+				(let ((tail (par mf a)))
+				  (stream-cat-tail tail
+								   (later
+									(stream-map-cat mf (funcall f))
+									:with (mf f)))))))
 
 (recur-defun* stream-map-interleave (mf stream)
   (lexical-let ((mf mf))
@@ -322,6 +356,9 @@
 		  (let-if rest (cdr list)
 				  (later (list->stream rest) :with (rest))
 				  nil)))
+
+(defun zip-streams (&rest streams)
+  (apply #'smapcar* #'list streams))
 
 (recur-defun* take-until (stream predicate &optional acc)
   (stream-case stream
