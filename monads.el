@@ -262,13 +262,24 @@ monad, but only admits unique results under PREDICATE.
 	  (fn []
 		  (funcall c x))))
 
-(defn m-chain [steps]
-  (foldl 
-   (fn [step chain-expr]
-	   (fn [v] (m-bind (funcall chain-expr v) step)))
-   #'m-return
-   steps))
+;; (defn m-chain [steps]
+;;   (foldl 
+;;    (fn [step chain-expr]
+;; 	   (fn [v] (m-bind (funcall chain-expr v) step)))
+;;    #'m-return
+;;    steps))
 
+(defun m-chain2 (v1 v2)
+  (lexical-let ((v1 v1)
+				(v2 v2))
+	(lambda (init)
+	  (m-bind (m-bind init v2) v1))))
+(defun m-chain (&rest vs)
+  (let* ((rvs (reverse vs))
+		(chain (car rvs)))
+	(loop for f in (cdr rvs) do
+		  (setq chain (m-chain2 f chain))
+		  finally (return chain))))    
 
 (defmacro* domonad-helper* (forms &body body)
   (cond 
@@ -329,13 +340,13 @@ compuations behave apropriately, even without a domonad
 enclosure."
   `(let ((current-monad ,monad))
 	 (lexical-let ((current-monad current-monad))
-	   (flet ((m-bind (v f) 
+	   (labels ((m-bind (v f) 
 					  (funcall (tbl current-monad :m-bind) v f))
 			  (>>= (v f)
 				   (funcall (tbl current-monad :m-bind) v f))
 			  (m-return (v)
 						(funcall (tbl current-monad :m-return) v)))
-		 (labels ((m-bind (v f) 
+		 (flet ((m-bind (v f) 
 						  (funcall (tbl current-monad :m-bind) v f))
 				  (>>= (v f)
 					   (funcall (tbl current-monad :m-bind) v f))
@@ -369,21 +380,15 @@ enclosure."
 
 (defmacro* mlet**_ (monad binders &body body)
   "Exactly like mlet* except that body is not wrapped in an implicit m-return."
-  `(let ((current-monad ,monad))
+  `(lexical-let ((current-monad ,monad))
 	 (lexical-let ((current-monad current-monad))
-	   (flet ((m-bind (v f) 
+	   (labels ((m-bind (v f) 
 					  (funcall (tbl current-monad :m-bind) v f))
 			  (>>= (v f)
 				   (funcall (tbl current-monad :m-bind) v f))
 			  (m-return (v)
 						(funcall (tbl current-monad :m-return) v)))
-		 (labels ((m-bind (v f) 
-						  (funcall (tbl current-monad :m-bind) v f))
-				  (>>= (v f)
-					   (funcall (tbl current-monad :m-bind) v f))
-				  (m-return (v)
-							(funcall (tbl current-monad :m-return) v)))
-		   (mlet*_-inner ,binders ,@body))))))
+		 (mlet*_-inner ,binders ,@body)))))
 
 
 (defun check-monad-binders (binder)

@@ -8,6 +8,7 @@
 (defun stream (hd &optional future)
   (make-stream :head hd :future future))
 
+(eval-when-compile-also
 (defun single-symbol-list? (item)
   (and (listp item)
 	   (= (length item) 1)
@@ -34,7 +35,7 @@
 		(with* 
 		 `(lexical-let* ,(mapcar #'with-form->binder with*)
 			(later ,expr)))
-		(t `(lambda () ,expr))))
+		(t `(lambda () ,expr)))))
 
 
 (defun scar (stream)
@@ -259,6 +260,17 @@
 							 (stream-cat-tail (funcall f) tail) :with (f tail)))))
 	(stream-cat-tail (funcall head-stream) tail)))
 
+(defun stream-interleave-tail (head-stream tail)
+  (if (stream? head-stream)
+	  (stream-case head-stream
+				   ((funcall tail))
+				   ((a)
+					(stream a tail))
+				   ((a f)
+					(stream a
+							(later 
+							 (stream-interleave-tail (funcall tail) f) :with (tail f)))))))
+
 (defun* stream-map-cat-tail (mf instream)
   (stream-case instream
 			   (nil)
@@ -302,24 +314,37 @@
 									(stream-map-cat mf (funcall f))
 									:with (mf f)))))))
 
-(recur-defun* stream-map-interleave (mf stream)
-  (lexical-let ((mf mf))
-	(stream-case stream 
-				 (nil)
-				 ((a) (funcall mf a))
-				 ((a f)
-				  (lexical-let ((interior-stream (funcall mf a))
-								(f f))
-					(stream-case interior-stream
-								 ((recur mf (funcall f)))
-								 ((b) (stream b
-											  (later
-											   (stream-map-interleave mf (funcall f)))))
-								 ((b g) (stream b
-												(lexical-let ((g g))
-												  (later
-												   (stream-interleave (funcall g)
-																	  (stream-map-cat mf (funcall f)))))))))))))
+(defun* stream-map-interleave (mf instream)
+  (stream-case instream
+			   (nil)
+			   ((a) (funcall mf a))
+			   ((a f)
+				(let ((tail (par mf a)))
+				  (stream-interleave-tail 
+				   tail 
+				   (later 
+					(stream-map-interleave mf (funcall f))
+					:with (mf f)))))))
+										   
+
+;; (recur-defun* stream-map-interleave (mf stream)
+;;   (lexical-let ((mf mf))
+;; 	(stream-case stream 
+;; 				 (nil)
+;; 				 ((a) (funcall mf a))
+;; 				 ((a f)
+;; 				  (lexical-let ((interior-stream (funcall mf a))
+;; 								(f f))
+;; 					(stream-case interior-stream
+;; 								 ((recur mf (funcall f)))
+;; 								 ((b) (stream b
+;; 											  (later
+;; 											   (stream-map-interleave mf (funcall f)))))
+;; 								 ((b g) (stream b
+;; 												(lexical-let ((g g))
+;; 												  (later
+;; 												   (stream-interleave (funcall g)
+;; 																	  (stream-map-cat mf (funcall f)))))))))))))
 
 
 (defun stream-bind (v f)

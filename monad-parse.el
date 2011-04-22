@@ -18,15 +18,19 @@
 		(loop for (value . input) in (funcall parser input) 
 			  append (funcall (funcall fun value) input))))))
 
-;; (defn parser-return [val]
-;;   (fn [input]
-;; 	  (list (cons val input))))
+(defn parser-return [val]
+  (fn [input]
+   (list (cons val input))))
 
-(defun parser-return (val)
-  (lexical-let ((val val))
-	(lambda (input) 
-	  (lexical-let ((input input))
-		(list (cons val input))))))
+;; (defun parser-return (val)
+;;   (lexical-let ((val val))
+;; 	(lambda (input) 
+;; 	  (list (cons val input)))))
+
+(defun parser-zero (&optional val)
+  (lambda (input) 
+	(lexical-let ((input input))
+	  (list (cons nil input)))))
 
 (setq monad-parse 
 	  (tbl! 

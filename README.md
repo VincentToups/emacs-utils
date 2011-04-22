@@ -1,6 +1,9 @@
 Clojure-like Emacs
 ------------------
 
+(NOTE: changes to the monad library regarding scope have broken tons
+of code (temporarily) !)
+
 This is a group of loosely organized utilities to add clojure like
 abilities to emacs-lisp.
 

@@ -89,23 +89,37 @@
   (let ((result (split-by-match '{/ '/} (cons '{/ *stack*))))
 	(if (None? result) (error "Unmatched {/ during immediate word {/")
 	  (let-seq (quot rest) (MaybeVal result)
-			   (db-print quot)
-			   (db-print rest)
+;			   (db-print quot)
+;			   (db-print rest)
 			   (setq *stack* rest)
-			   (print *stack*)
+;			   (print *stack*)
 			   (push `(quote ,quot) *stack*)
-			   (print *stack*)))))
+;			   (print *stack*)
+))))
 
 (defstackword-immediate {
   (let ((result (split-by-match '{ '} (cons '{ *stack*))))
 	(if (None? result) (error "Unmatched { during immediate word {")
 	  (let-seq (quot rest) (MaybeVal result)
-			   (db-print quot)
-			   (db-print rest)
+;			   (db-print quot)
+;			   (db-print rest)
 			   (setq *stack* rest)
-			   (print *stack*)
+;			   (print *stack*)
 			   (push `(quote ,quot) *stack*)
-			   (print *stack*)))))
+			   ;(print *stack*)
+))))
+
+(defstackword-immediate {:
+  (let ((result (split-by-match '{: ':} (cons '{: *stack*))))
+	(if (None? result) (error "Unmatched {: during immediate word {:")
+	  (let-seq (quot rest) (MaybeVal result)
+;			   (db-print quot)
+;			   (db-print rest)
+			   (setq *stack* rest)
+;			   (print *stack*)
+;			   (push `(quote ,quot) *stack*)
+			   ;(print *stack*)
+))))
 
 
 (defstackword-immediate {-
@@ -189,4 +203,12 @@
 
 (bivalent-stack-words append suffix prefix elt)
 (univalent-stack-words listp not)
+
+(word: odd? 1>oddp)
+(word: even? 1>evenp)
+
+(word: for-each {: seq qtn -- :}
+  { { tail&head } dip dup { call } dip 
+    { dup length 0 = not } dip swap } loop drop drop)
+
 (provide 'stack-words)

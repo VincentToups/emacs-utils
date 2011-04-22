@@ -955,6 +955,20 @@ optional OR-VAL if the key is not in the alist."
 				   (lexical-let ((value value))
 					 (lambda (xxx) (cons value xxx)))))
 
+(defun alist-filter (alst key filter-fun)
+  "Filter the list at KEY using the filter-function FILTER-FUN in ALST"
+  (alist-conjugate alst key
+				   (lexical-let ((fun filter-fun))
+					 (lambda (list)
+					   (filter fun list)))))
+
+(defun* alist-remove-from-list (alst key object &optional (pred #'equal))
+  "Remove OBJECTS from the list at KEY in ALST with optional PRED for equality testing."
+  (alist-filter alst key 
+				(lexical-let ((p pred)
+							  (o object))
+				  (lambda (thing) (not (funcall pred o thing))))))
+
 (defun* alist-add-to-set (alst key value &optional (pred #'equal))
   "Adds the VALUE to the set held at KEY in ALST.  Optionally specify PRED
 to control set equality.  Defaults to EQUAL."
@@ -1936,6 +1950,66 @@ result.  Only works if the difference would fit in 16 bits."
 						(progn 
 						  ,@body)))
 				   (values ,result (hours-minutes-seconds (small-time-diff (current-time) ,tick))))))
+(defun length= (lst n)
+  "Returns true if LENGTH LST is N."
+  (= (length lst) n))
 
+(defun length> (lst n)
+  "Returns true if the LENGTH of LST is > N."
+  (> (length lst) n))
+
+(defun length< (lst n)
+  "Returns true if the LENGTH of LST is < N."
+  (< (length lst) n))
+
+(defun length<= (lst n)
+  "Returns true if the LENGTH of LST is <= N."
+  (<= (length lst) n))
+
+(defun length>= (lst n)
+  "Returns true if the LENGTH of LST is >= N."
+  (>= (length lst) n))
+
+(defun* notify-send (head &optional (body ""))
+  (shf "notify-send \"%s\" \"%s\"" head body))
+
+(setq *pom-timer* nil)
+(defun pom-start ()
+  (interactive)
+  (notify-send "Pom: Start work on task NOW.")
+  (setq *pom-timer* 
+		(run-with-timer (* 25 60) nil
+						(lambda ()
+						  (notify-send "Pom: Take a break!")
+						  (setq *pom-timer* (run-with-timer (* 5 60) nil 
+															(lambda ()
+															  (notify-send "Pom: Break over")
+															  (pom-start)))))))
+  (run-with-timer (* (/ 25.0 2) 60) nil
+				  (lambda ()
+					(if *pom-timer*
+						(notify-send (format "Pom: %d minutes left." 12.5))))))
+(defun pom-stop ()
+  (interactive)
+  (if *pom-timer*
+	  (cancel-timer *pom-timer*))
+  (setq *pom-timer* nil))
+
+(defun get-pom-timer-time ()
+  (if *pom-timer*
+	  (elts *pom-timer* '(1 2 3))))
+
+(defun hours-minutes-seconds->string (hms)
+  (let-seq (h m s) hms 
+		   (format "%d hours %d minutes and %d seconds" h m s)))
+
+(defun time-till-next-pom-event ()
+  (interactive)
+  (let ((pmtm (get-pom-timer-time)))
+	(let-if res (hours-minutes-seconds (small-time-diff pmtm (current-time)))
+			(prog1 res (print (hours-minutes-seconds->string res))) nil)))
+
+
+  
 
 (provide 'utils)

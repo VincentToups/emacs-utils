@@ -20,16 +20,16 @@
   `(lex-defun ,name (,(car arg))
 	 ,@body))
 
-(defgoal s% (s) (stream s))
-(defgoal u% (s) choice-zero)
+(defgoal s (v) (stream v))
+(defgoal fail (s) choice-zero)
 
 (lex-defun =%= (v w)
   (goal (s)
 		(let ((ucation
 			   (unify v w s)))
 		  (cond 
-		   (ucation (funcall s% ucation))
-		   (t (funcall u% s))))))
+		   (ucation (funcall s ucation))
+		   (t (funcall fail s))))))
 
 (defmacro fresh (vars &rest body)
   (with-gensyms 
@@ -53,3 +53,22 @@
 				   (funcall (all ,@body) empty-s))
 		nil))))
 
+(defmacro cond-aux (ifer &rest other-args)
+  (dlet_ [[head & tail] other-args
+          [h-head & h-tail] head ]
+	(cond 
+	 ((length= other-args 0) 'fail)
+	 ((and 
+	   (eq h-head 'else)
+	   (length= tail 0))
+	  `(loel-all ,@h-tail))
+	 ((and
+	   (not (eq h-head 'else))
+	   (length= tail 0))
+	  `(loel-all ,@head))
+	 ((and
+	   (length> head 0))
+	  `(cond-aux ,ifer 
+				 (loel-all ,@head)
+				 (cond-aux ,ifer ,@tail))))))
+	   

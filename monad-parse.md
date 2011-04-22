@@ -109,3 +109,33 @@ Disclaimer: This library depends on so much insanity that I cannot
 guarantee that it will function as advertised or that it will not
 make you lose your mind.
 
+Notes on the monad.
+-------------------
+
+This library is obviously monadic, but what is the monad?  Well, it
+its the parser monad.  Monadic values are functions which accept a
+value and return a parser, which is itself a function which accepts an
+input and returns a list of possible parsing results, which are
+value/post-input pairs.  It is useful to examine the return operation
+of any monad to understand what the monadic values are (in statically
+typed languages, you can also see the contained type in the type of
+the input argument.  In our case, its just "lisp values".)
+
+    (defun parser-return (val)
+      (lexical-let ((val val))
+        (lambda (input) 
+          (list (cons val input)))))
+
+Return takes a value, and returns a (monadic) function (of the list of
+value/input pairs monad, as an aside).  The type of this function is
+input -> (list Pair).  Ok, these functions from inputs to
+value/post-input pairs are MONADIC VALUES.  What are MONADIC
+FUNCTIONS?
+
+Well, they are functions like BIND.  They take a value and return a
+MONADIC VALUE.  That is, they are functions of values which return
+functions of inputs which return lists of pairs of values and inputs.
+
+
+
+
