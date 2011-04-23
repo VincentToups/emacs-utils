@@ -5,21 +5,26 @@
   (cond
    ((symbolp item)
 	(if ($ item in literals) 
-		(mlet*_ monad-parse ((_ (=satisfies (par #'eq item))))
-				(m-return (list item _)))
-	  (mlet*_ monad-parse 
-			  ((thing (=satisfies (always t))))
-			  (m-return
-			   (list item thing)))))))
+		(lexical-mlet monad-parse ((_ (=satisfies (par #'eq item))))
+				 (m-return (list (list item _))))
+	  (lexical-mlet monad-parse 
+			   ((thing (=satisfies (always t))))
+			   (m-return
+				(list (list item thing))))))))
+
+(parse-sequence (item->parser-function '(x) 'x) '(x))
+(setq p (parser-append (item->parser-function '(x) 'x)
+					   (item->parser-function '(x) 'y)))
+
+(parse-sequence p '(x :hat))
+
+(with-monad-dyn monad-parse
+				(parse-sequence p '(x :hat)))
 
 
-
-(defun parser-append (p1 p2)
-  (with-monad-dyn monad-parse
-				  (funcall (m-lift 2 #'append) p1 p2)))
 
 (lex-defun parser-append (p1 p2)
-  (mlet**_ monad-parse
+  (lexical-mlet monad-parse
 		   ((v1 p1)
 			(v2 p2))
 		  (m-return (append v1 v2))))

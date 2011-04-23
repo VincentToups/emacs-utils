@@ -20,7 +20,7 @@
 
 (defn parser-return [val]
   (fn [input]
-   (list (cons val input))))
+	  (list (cons val input))))
 
 ;; (defun parser-return (val)
 ;;   (lexical-let ((val val))
@@ -139,28 +139,28 @@
 				  (input-rest input))))))
 
 (lex-defun parser-items (n)
-		   (lambda (input)
-			 (let ((i 0)
-				   (ac nil))
-			   (loop while (and (< i n)
-								(not (input-empty? input)))
-					 do
-					 (setq i (+ i 1))
-					 (push (input-first input) ac )
-					 (setq input (input-rest input)))
-			   (if (= (length ac) n) (list (cons (reverse ac) input) nil)))))
+  (lambda (input)
+	(let ((i 0)
+		  (ac nil))
+	  (loop while (and (< i n)
+					   (not (input-empty? input)))
+			do
+			(setq i (+ i 1))
+			(push (input-first input) ac )
+			(setq input (input-rest input)))
+	  (if (= (length ac) n) (list (cons (reverse ac) input) nil)))))
 
 (lex-defun parser-items->string (n)
-		   (lambda (input)
-			 (let ((i 0)
-				   (ac nil))
-			   (loop while (and (< i n)
-								(not (input-empty? input)))
-					 do
-					 (setq i (+ i 1))
-					 (push (input-first input) ac )
-					 (setq input (input-rest input)))
-			   (if (= (length ac) n) (list (cons (coerce (reverse ac) 'string) input) nil)))))
+  (lambda (input)
+	(let ((i 0)
+		  (ac nil))
+	  (loop while (and (< i n)
+					   (not (input-empty? input)))
+			do
+			(setq i (+ i 1))
+			(push (input-first input) ac )
+			(setq input (input-rest input)))
+	  (if (= (length ac) n) (list (cons (coerce (reverse ac) 'string) input) nil)))))
 
 (defun =string (str)
   (lexical-let ((str str))
@@ -280,7 +280,7 @@
 				 (list (cons t input))))))
 
 (defmacro* =let* (forms &body body)
-  `(domonad monad-parse ,forms ,@body))
+  `(lexical-domonad< monad-parse ,forms ,@body))
 
 (defmacro* =simple-let* (bindings &body body)
   (if bindings 

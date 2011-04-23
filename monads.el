@@ -1,4 +1,4 @@
-(require 'cl)
+ (require 'cl)
 (require 'utils)
 (require 'defn)
 (require 'recur)
@@ -9,6 +9,13 @@
 ;; 	   :m-bind (lambda (v f)
 ;; 			   (if (= (car v) 'None) v
 ;; 				 (funcall f (cadr v))))))
+
+(eval-when-compile-also 
+ (defun monad? (m)
+   (and (hash-table-p m)
+		(tbl m :m-bind)
+		(tbl m :m-return))))
+
 
 (defn Just [x] 
   (list 'Just x))
@@ -137,7 +144,7 @@ transforms it out of other such functions.")
   "Like mapcat, but turns non-list elements into lists if they are encountered."
   (loop for item in 
 		(if (listp lst) lst 
-			(list lst))
+		  (list lst))
 		append
 		(let ((result (funcall f item)))
 		  (if (listp result) result
@@ -234,20 +241,10 @@ monad, but only admits unique results under PREDICATE.
 
 
 (defmacro* with-monad (monad &body body)
-  `(let ((current-monad ,monad))
-	 (labels ((m-return (x) (m-m-return current-monad x))
-			  (m-bind (v f) (m-m-bind current-monad v f))
-			  (>>= (v f) (m-m-bind current-monad v f)))
-	   (lexical-let ((m-zero (tbl current-monad :m-zero)))
-		 ,@body))))
+  `(lexical-let-monad ,monad ,@body))
 
 (defmacro* with-monad-dyn (monad &body body)
-  `(let ((current-monad ,monad))
-	 (flet ((m-return (x) (m-m-return current-monad x))
-			(m-bind (v f) (m-m-bind current-monad v f))
-			(>>= (v f) (m-m-bind current-monad v f)))
-	   (let ((m-zero (tbl current-monad :m-zero)))
-		 ,@body))))
+  `(let-monad ,monad ,@body))
 
 (defn halt [x]
   (fn [c] x))
@@ -276,254 +273,242 @@ monad, but only admits unique results under PREDICATE.
 	  (m-bind (m-bind init v2) v1))))
 (defun m-chain (&rest vs)
   (let* ((rvs (reverse vs))
-		(chain (car rvs)))
+		 (chain (car rvs)))
 	(loop for f in (cdr rvs) do
 		  (setq chain (m-chain2 f chain))
 		  finally (return chain))))    
 
-(defmacro* domonad-helper* (forms &body body)
-  (cond 
-   ((= 0 (length forms))  `(progn ,@body))
-   (t 
-	(dlet_ [[form val & rest-forms] forms]
-	  `(m-bind ,val (fn ,(vector form) (domonad-helper* ,rest-forms ,@body)))))))
-
-(defmacro* domonad* (monad forms &body body)
-  "Like DOMONAD but does not warp the BODY of the macro in an M-RETURN."
-  (cond 
-   ((oddp (length forms)) (error "domonad requires an even number of forms"))
-   (t
-	`(with-monad ,monad
-				 (domonad-helper* ,forms ,@body)))))
+;;;
 
 
-
-
-
-
-
-(defmacro mlet*-inner (binders &rest body)
-  "Handles inner expansion of mlet*."
-  (if (empty? binders)
-	  `(m-return (progn ,@body))
-	(let* ((binder (car binders))
-		   (sym (car binder))
-		   (expr (cadr binder))
-		   (rest-binders (cdr binders)))
-	  `(m-bind ,(cadr binder)
-			   (lambda (,sym)
-				 (lexical-let ((,sym ,sym))
-				   (mlet*-inner ,rest-binders ,@body)))))))
-
-(defmacro* mlet* (monad binders &body body)
-  "Performs the bindings in BINDERS in the monad MONAD, finally
-executing BODY in an implicit m-return.  In the dynamic contex,
-m-return, m-bind and m-zero are bound.  >>= is a synonym for
-m-bind.  Binders are standard elisp binder syntax, just like a
-let*."
-  `(let ((current-monad ,monad))
-	 (flet ((m-bind (v f) 
+(defmacro* let-monad (monad &rest body)
+  "Create a dynamic scope in which MONAD is exposed
+as CURRENT-MONAD, with M-ZERO and functions M-PLUS, M-BIND, M-RETURN and >>= (bind)
+defined via let and flet forms.  Useing this inside LEXICAL-LET-MONAD is undefined."
+  `(let* ((current-monad ,monad)
+		  (m-zero (tbl current-monad :m-zero)))
+	 (if (not (monad? current-monad))
+		 (error "Expected a monad in an mlet or similar form.  
+A monad is a hash table with m-return and m-bind forms."))
+	 (flet ((m-bind (v f)
 					(funcall (tbl current-monad :m-bind) v f))
+			(m-return (v)
+					  (funcall (tbl current-monad :m-return) v))
 			(>>= (v f)
 				 (funcall (tbl current-monad :m-bind) v f))
-			(m-return (v)
-					  (funcall (tbl current-monad :m-return) v)))
-	   (mlet*-inner ,binders ,@body))))
+			(m-plus (mv1 mv2)
+					(funcall (tbl current-monad :m-plus) mv1 mv2)))
+	   ,@body)))
 
-(defmacro* mlet** (monad binders &body body)
-  "Performs the bindings in BINDERS in the monad MONAD, finally
-executing BODY in an implicit m-return.  In the dynamic contex,
-m-return, m-bind and m-zero are bound.  >>= is a synonym for
-m-bind.  Binders are standard elisp binder syntax, just like a
-let*.  This also lexical-lets the monad functions so that delayed
-compuations behave apropriately, even without a domonad
-enclosure."
-  `(let ((current-monad ,monad))
-	 (lexical-let ((current-monad current-monad))
-	   (labels ((m-bind (v f) 
+(defmacro* lexical-let-monad (monad &rest body)
+  "Create a LEXICAL scope in which MONAD is exposed
+as CURRENT-MONAD, with M-ZERO and functions M-PLUS, M-BIND, M-RETURN and >>= (bind)
+defined via lexical-let and LABELS."
+
+  `(lexical-let* ((current-monad ,monad)
+				  (m-zero (tbl current-monad :m-zero)))
+	 (if (not (monad? current-monad))
+		 (error "Expected a monad in an mlet or similar form.  
+A monad is a hash table with m-return and m-bind forms."))
+	 (labels ((m-bind (v f)
 					  (funcall (tbl current-monad :m-bind) v f))
+			  (m-return (v)
+						(funcall (tbl current-monad :m-return) v))
 			  (>>= (v f)
 				   (funcall (tbl current-monad :m-bind) v f))
-			  (m-return (v)
-						(funcall (tbl current-monad :m-return) v)))
-		 (flet ((m-bind (v f) 
-						  (funcall (tbl current-monad :m-bind) v f))
-				  (>>= (v f)
-					   (funcall (tbl current-monad :m-bind) v f))
-				  (m-return (v)
-							(funcall (tbl current-monad :m-return) v)))
-		   (mlet*-inner ,binders ,@body))))))
+			  (m-plus (mv1 mv2)
+					  (funcall (tbl current-monad :m-plus) mv1 mv2)))
+	   ,@body)))
 
+(defmacro* lexical-domonad-inner (binders &rest body)
+  (if (empty? binders) `(progn ,@body)
+	(dlet_ [[sym expr & rest-binders] binders]
+	  `(m-bind ,expr (fn ,(vector sym)
+						 (lexical-domonad-inner ,rest-binders ,@body))))))
 
-(defmacro mlet*_-inner (binders &rest body)
-  (if (empty? binders)
-	  `(progn ,@body)
-	(let* ((binder (car binders))
-		   (sym (car binder))
-		   (expr (cadr binder))
-		   (rest-binders (cdr binders)))
-	  `(m-bind ,(cadr binder)
-			   (lambda (,sym)
-				 (lexical-let ((,sym ,sym))
-				   (mlet*_-inner ,rest-binders ,@body)))))))
+(defmacro* lexical-domonad ({monad} binders &body body)
+  "LEXICAL-DOMONAD - sequence binders (a clojure vector binding expression) through
+{MONAD}, which is the current dynamically scoped monad, if not supplied.  
+Finally execute and return BODY.  BODY and BINDERS have LEXICALLY scoped copies 
+of the monad and associated functions."
+  (if (vectorp {monad})
+	  `(lexical-domonad current-monad ,{monad} ,@(cons binders body))
+	`(let-monad 
+	  ,{monad} 
+	  (lexical-let-monad 
+	   current-monad 
+	   (lexical-domonad-inner ,binders ,@body)))))
 
-(defmacro* mlet*_ (monad binders &body body)
-  "Exactly like mlet* except that body is not wrapped in an implicit m-return."
-  `(let ((current-monad ,monad))
-	 (flet ((m-bind (v f) 
-					(funcall (tbl current-monad :m-bind) v f))
-			(>>= (v f)
-				 (funcall (tbl current-monad :m-bind) v f))
-			(m-return (v)
-					  (funcall (tbl current-monad :m-return) v)))
-	   (mlet*_-inner ,binders ,@body))))
-
-(defmacro* mlet**_ (monad binders &body body)
-  "Exactly like mlet* except that body is not wrapped in an implicit m-return."
-  `(lexical-let ((current-monad ,monad))
-	 (lexical-let ((current-monad current-monad))
-	   (labels ((m-bind (v f) 
-					  (funcall (tbl current-monad :m-bind) v f))
-			  (>>= (v f)
-				   (funcall (tbl current-monad :m-bind) v f))
-			  (m-return (v)
-						(funcall (tbl current-monad :m-return) v)))
-		 (mlet*_-inner ,binders ,@body)))))
-
-
-(defun check-monad-binders (binder)
-  (if (not (vectorp binder)) (error "domonad-like forms need a vector for its bind forms."))
-  (if (not (= 0 (mod (length binder) 2)))
-	  (error "domonad-like vector binders need to have an even number of forms.")))
 
 (defmacro* domonad-inner (binders &rest body)
-  "Handles the simple expansion of the inner monad forms.
-DOMONAD binds the monad functions."
-  (if (empty? binders) `(m-return (progn ,@body))
-	(dlet_ [[var expr & latter-binders] binders]
-	  `(m-bind ,expr (fn ,(vector var)
-						 (domonad-inner ,latter-binders ,@body))))))
+  (if (empty? binders) `(progn ,@body)
+	(dlet_ [[sym expr & binders] binders]
+	  `(m-bind ,expr (fn ,(vector sym)
+						 (domonad-inner ,binders ,@body))))))
 
 (defmacro* domonad ({monad} binders &body body)
-  "DOMONAD: Sequence the computations/bindings in FORMS using the
-  monad MONAD, finally, evaluate BODY, returning the value of the
-  final form.  FORMS are binders like those from the DEFN library,
-  and are unnested compared to regular let bindings.  That is, [x
-  10 y 11] binds x to 10, y to 11.
+  "DOMONAD - sequence binders (a clojure vector binding expression) through
+{MONAD}, which is the current dynamically scoped monad, if not supplied.  
+Finally execute and return BODY.  BODY and BINDERS have DYNAMICALLY scoped copies 
+of the monad and associated functions.
 
-  Use mlet* for a standard lisp-like binder.
+Use this form if you wish to define a function which is MONAD independent."
 
-  Inside a DOMONAD M-BIND and M-RETURN are bound to 
-  the bind and return functions associated with MONAD.
-  Monads are pretty cool.
+  (if (vectorp {monad})
+	  `(domonad current-monad ,{monad} ,@(cons binders body))
+	`(let-monad 
+	  ,{monad} 
+	  (domonad-inner ,binders ,@body))))
 
-  Note: >>= is also bound as the bind function.  This is handy
-  to combine with the $ infix macro: ($ v >>= f) -> (>>= v f) 
-  but resembles Haskell notation for the confused.
 
-  You may leave of {monad}, in which case, this runs in the
-  current monad, defaulting to the identity."
+(defmacro* domonad-inner< (binders &rest body)
 
-  (if (vectorp {monad}) 
-	  `(domonad current-monad ,binders ,@body)
-	(progn
-	  (check-monad-binders binders)
-	  `(let* ((current-monad ,{monad})
-			  (m-zero (tbl current-monad :m-zero)))
-		 (flet ((m-bind (v f) 
-						(funcall (tbl current-monad :m-bind) v f))
-				(>>= (v f)
-					 (funcall (tbl current-monad :m-bind) v f))
-				(m-return (v)
-						  (funcall (tbl current-monad :m-return) v)))
-		   (domonad-inner ,binders ,@body))))))
-
-(defmacro* domonad-inner_ (binders &rest body)
-  "Handles the simple expansion of the inner monad forms.
-DOMONAD binds the monad functions."
   (if (empty? binders) `(m-return (progn ,@body))
-	(dlet_ [[var expr & latter-binders] binders]
-	  `(m-bind ,expr (fn ,(vector var)
-						 (domonad-inner_ ,latter-binders ,@body))))))
+	(dlet_ [[sym expr & binders] binders]
+	  `(m-bind ,expr (fn ,(vector sym)
+						 (domonad-inner< ,binders ,@body))))))
 
-(defmacro* domonad_ ({monad} binders &body body)
-  "Just like domonad but does not enclose BODY in an implicit return."
-  (if (vectorp {monad}) 
-	  `(domonad current-monad_ ,binders ,@body)
-	(progn
-	  (check-monad-binders binders)
-	  `(let* ((current-monad ,{monad})
-			  (m-zero (tbl current-monad :m-zero)))
-		 (flet ((m-bind (v f) 
-						(funcall (tbl current-monad :m-bind) v f))
-				(>>= (v f)
-					 (funcall (tbl current-monad :m-bind) v f))
-				(m-return (v)
-						  (funcall (tbl current-monad :m-return) v)))
-		   (domonad-inner_ ,binders ,@body))))))
+(defmacro* domonad< ({monad} binders &body body)
+  "DOMONAD - sequence binders (a clojure vector binding expression) through
+{MONAD}, which is the current dynamically scoped monad, if not supplied.  
+Finally execute and return BODY, wrapping the result with M-RETURN.  
+BODY and BINDERS have DYNAMICALLY scoped copies 
+of the monad and associated functions.
 
+Use this form if you wish to define a function which is MONAD independent.
 
-;; (defmacro* domonad-inner (m-bind-sym m-return-sym forms &body body)
-;;   (cond ((= 0 (length forms)) `(funcall ,m-return-sym (progn ,@body)))
-;; 		((>= (length forms) 2)
-;; 		 (dlet [[form val & rest-forms] forms]
-;; 		   `(funcall ,m-bind-sym 
-;; 					 ,val
-;; 					 (fnc ,(vector form)
-;; 						  (domonad-inner 
-;; 						   ,m-bind-sym 
-;; 						   ,m-return-sym 
-;; 						   ,rest-forms
-;; 						   ,@body)))))
-;; 		(t (error "domonad requires an even number of m-bind forms"))))
+This form corresponds most directly to the Clojure DOMONAD form."
+  (if (vectorp {monad})
+	  `(domonad< current-monad ,{monad} ,@(cons binders body))
+	`(let-monad 
+	  ,{monad} 
+	  (domonad-inner< ,binders ,@body))))
 
+(defmacro* lexical-domonad-inner< (binders &rest body)
+  (if (empty? binders) `(m-return (progn ,@body))
+	(dlet_ [[sym expr & binders] binders]
+	  `(m-bind ,expr (fn ,(vector sym)
+						 (lexical-domonad-inner< ,binders ,@body))))))
 
-;; (defmacro* domonad (monad forms &body body)
-;;   "DOMONAD: Sequence the computations/bindings in FORMS using the
-;; monad MONAD, finally, evaluate BODY, returning the value of the
-;; final form.  FORMS are binders like those from the DEFN library,
-;; and are unnested compared to regular let bindings.  That is, [x
-;; 10 y 11] binds x to 10, y to 11.
+(defmacro* lexical-domonad< ({monad} binders &body body)
+  "LEXICAL-DOMONAD< - sequence binders (a clojure vector binding expression) through
+{MONAD}, which is the current dynamically scoped monad, if not supplied.  
+Finally execute and return BODY, wrapping the result with M-RETURN.  
+BODY and BINDERS have LEXICALLY scoped copies 
+of the monad and associated functions.
 
-;; Use mlet* for a standard lisp-like binder.
+This is the most heavy duty form.
+"
+  (if (vectorp {monad})
+	  `(lexical-domonad< current-monad ,{monad} ,@(cons binders body))
+	`(let-monad 
+	  ,{monad} 
+	  (lexical-let-monad 
+	   current-monad 
+	   (lexical-domonad-inner< ,binders ,@body)))))
 
-;; Inside a DOMONAD M-BIND and M-RETURN are bound to 
-;; the bind and return functions associated with MONAD.
-;; Monads are pretty cool.
+(defmacro* lexical-mlet-inner (binders &rest body)
 
-;; Note: >>= is also bound as the bind function.  This is handy
-;; to combine with the $ infix macro: ($ v >>= f) -> (>>= v f) 
-;; but resembles Haskell notation for the confused."
-;;   (cond
-;;    ((oddp (length forms)) (error "domonad requires an even number of forms")) 
-;;    ((= 0 (length forms)) `(progn ,@body))
-;;    ((>= (length forms) 2)
-;; 	(dlet [monad-sym 
-;; 		   (gensym "monad")
-;; 		   m-bind-sym 
-;; 		   (gensym "m-bind")
-;; 		   m-return-sym 
-;; 		   (gensym "m-return")
-;; 		   [form val & rest-forms]
-;; 		   forms]
-;; 	  `(dlet [,monad-sym
-;; 			  ,monad
-;; 			  ,m-bind-sym
-;; 			  (tbl ,monad-sym :m-bind)
-;; 			  ,m-return-sym
-;; 			  (tbl ,monad-sym :m-return)]
-;; 		 (labels ((m-bind (v f) (funcall ,m-bind-sym v f))
-;; 				  (>>= (v f) (funcall ,m-bind-sym v f))
-;; 				  (m-return (x) (funcall ,m-return-sym x)))
-;; 		   (funcall ,m-bind-sym
-;; 										;(funcall ,m-return-sym ,val)
-;; 					,val
-;; 					(fnc ,(vector form)
-;; 						 (domonad-inner 
-;; 						  ,m-bind-sym 
-;; 						  ,m-return-sym 
-;; 						  ,rest-forms 
-;; 						  ,@body)))))))))
+  (cond 
+   ((empty? binders) `(progn ,@body))
+   (t 
+	(let* ((binder (car binders))
+		   (symbol (car binder))
+		   (expr   (cadr binder)))
+	  `(m-bind ,expr
+			   (lex-lambda (,symbol)
+						   (lexical-mlet-inner ,(cdr binders) ,@body)))))))
+
+(defmacro* lexical-mlet (monad binders &rest body)
+"LEXICAL-MLET - Chain the operations in BINDERS, regular 
+lisp style let binding expressions, through the monad MONAD,
+finally returning the result of BODY.  Lexically bound copies
+of the monad and monad functions are provided in the expression
+forms of this macro."
+  `(let-monad ,monad
+			  (lexical-let-monad current-monad 
+								   (lexical-mlet-inner ,binders ,@body))))
+
+(defmacro* lexical-mlet-inner< (binders &rest body)
+  (cond 
+   ((empty? binders) `(m-return (progn ,@body)))
+   (t 
+	(let* ((binder (car binders))
+		   (symbol (car binder))
+		   (expr   (cadr binder)))
+	  `(m-bind ,expr
+			   (lex-lambda (,symbol)
+						   (lexical-mlet-inner< ,(cdr binders) ,@body)))))))
+
+(defmacro* lexical-mlet< (monad binders &rest body)
+"LEXICAL-MLET - Chain the operations in BINDERS, regular 
+lisp style let binding expressions, through the monad MONAD,
+finally returning the result of BODY, wrapped in a final call 
+to M-RETURN.  
+
+Lexically bound copies
+of the monad and monad functions are provided in the expression
+forms of this macro."
+
+  `(let ((current-monad ,monad))
+	 (if (not (monad? current-monad))
+		 (error "Expected a monad in lexical-mlet< or similar form.  A monad is a hash table with m-return and m-bind forms."))
+	 (let-monad ,monad
+				(lexical-let-monad current-monad 
+								   (lexical-mlet-inner< ,binders ,@body)))))
+
+(defmacro* mlet-inner (binders &rest body)
+  (cond 
+   ((empty? binders) `(progn ,@body))
+   (t 
+	(let* ((binder (car binders))
+		   (symbol (car binder))
+		   (expr   (cadr binder)))
+	  `(m-bind ,expr
+			   (lex-lambda (,symbol)
+						   (mlet-inner ,(cdr binders) ,@body)))))))
+
+(defmacro* mlet (monad binders &rest body)
+"MLET - Monadic let.  Sequence the bindings represented in BINDINGS, 
+which resemble regular lisp let-like binding forms, through the monad
+MONAD.  Finally execute and return body.
+
+This is the most emacs-lisp flavored monad form."
+  `(let-monad ,monad
+			  (mlet-inner ,binders ,@body)))
+
+(defmacro* mlet-inner< (binders &rest body)
+  (cond 
+   ((empty? binders) `(m-return (progn ,@body)))
+   (t 
+	(let* ((binder (car binders))
+		   (symbol (car binder))
+		   (expr   (cadr binder)))
+	  `(m-bind ,expr
+			   (lex-lambda (,symbol)
+						   (mlet-inner< ,(cdr binders) ,@body)))))))
+
+(defmacro* mlet< (monad binders &rest body)
+  "MLET - Monadic let.  Sequence the bindings represented in BINDINGS, 
+which resemble regular lisp let-like binding forms, through the monad
+MONAD.  Finally execute and return body, wrapped in a final M-RETURN."
+  (if (not (monad? current-monad))
+	  (error "Expected a monad in mlet or similar form.  A monad is a hash table with m-return and m-bind forms."))
+  `(let-monad ,monad
+			  (mlet-inner< ,binders ,@body)))
+
+(defun tagged-value? (tag val)
+  (and (listp val)
+	   (eq (car val) tag)))
+
+(lex-defun tagged-monad (tag)
+  (tbl! 
+   :m-bind (lex-lambda (v f)
+					   (if (not (tagged-value? tag v))
+						   (error "Tagged monad error, expected tagged value of tag %s" tag))
+					   (funcall f (cadr v)))
+   :m-return (lambda (v) (list tag v))))
+
 
 
 
@@ -566,39 +551,38 @@ monadically, according to the current monad."
   "Generate the temporary variable names for a lift."
   (coerce (loop for a in arg-names append (list a a)) 'vector))
 
-(defmacro m-lift (n f)
+(defmacro* m-lift (n f)
   "Macro - LIFT F (with N args) into the current monad."
-  (with-gensyms 
-   (fsym)
-   (let ((arg-names 
-		  (loop for i from 1 to n collect
-				(gensymf "arg%d" i))))
-	 `(lexical-let ((,fsym ,f))
-		(lex-lambda ,arg-names
-					(domonad current-monad 
-							 ,(gen-m-lift-binding arg-names)
-							 (funcall ,fsym ,@arg-names)))))))
+  (let ((arg-names (mapcar (pal #'gensymf "lift-arg%d-") (range n))))
+	(with-gensyms 
+ 	 (f-to-lift)
+ 	 `(lexical-let ((,f-to-lift ,f))
+		(lambda ,arg-names
+		  (mlet< current-monad
+				 ,(loop for nm in arg-names collect
+						`(,nm ,nm))
+				 (funcall ,f-to-lift ,@arg-names))))))) 
 
-(defmacro m-lift-into (n f monad)
+(defmacro* m-lift-into (n f monad)
   "Macro - LIFT F (with N args) into the current monad."
-  (with-gensyms 
-   (fsym monadsym)
-   (let ((arg-names 
-		  (loop for i from 1 to n collect
-				(gensymf "arg%d" i))))
-	 `(lexical-let ((,fsym ,f)
-					(,monadsym ,monad))
-		(lex-lambda ,arg-names
-					(domonad ,monadsym
-							 ,(gen-m-lift-binding arg-names)
-							 (funcall ,fsym ,@arg-names)))))))
+  (with-gensyms (lifted-args)
+				`(lambda (&rest ,lifted-args)
+				   (let-monad ,monad 
+							  (apply 
+							   (m-lift ,n ,f) ,lifted-args)))))
 
-(defun m-lift-into1 (f monad) (m-lift-into 1 f monad))
-(defun m-lift-into2 (f monad) (m-lift-into 2 f monad))
-(defun m-lift-into3 (f monad) (m-lift-into 3 f monad))
-(defun m-lift-into4 (f monad) (m-lift-into 4 f monad))
-(defun m-lift-into5 (f monad) (m-lift-into 5 f monad))
-(defun m-lift-into6 (f monad) (m-lift-into 6 f monad))
+(defun m-lift-into1 (f monad) 
+  (m-lift-into 1 f monad))
+(defun m-lift-into2 (f monad) 
+  (m-lift-into 2 f monad))
+(defun m-lift-into3 (f monad) 
+  (m-lift-into 3 f monad))
+(defun m-lift-into4 (f monad) 
+  (m-lift-into 4 f monad))
+(defun m-lift-into5 (f monad) 
+  (m-lift-into 5 f monad))
+(defun m-lift-into6 (f monad) 
+  (m-lift-into 6 f monad))
 
 (defun m-lift1 (f)
   (m-lift 1 f))
@@ -643,9 +627,6 @@ monadically, according to the current monad."
 ;; 				  [nth-item nth-item]
 ;; 				  (setf (elt rest n) nth-item)
 ;; 				  (apply f rest))))))
-
-
-
 
 (provide 'monads)
 

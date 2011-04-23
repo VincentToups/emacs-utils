@@ -201,7 +201,7 @@
 
 (defstackword swons (|||- swap cons))
 
-(bivalent-stack-words append suffix prefix elt)
+(bivalent-stack-words append suffix prefix elt concat)
 (univalent-stack-words listp not)
 
 (word: odd? 1>oddp)
