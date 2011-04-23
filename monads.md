@@ -585,20 +585,18 @@ that library, monads are defined as hash tables containing `:m-bind` and
       Combine computations over multiple possibilities.")
 
 Note here that `tbl!` is is just sugar for `make-hash-table`.  The
-nearest equivalent to what we've called `monadic-let*` is `mlet*_`
-which takes as its first argument a monad represented as a hash table.
-In addition to the bind-chaining described above, it introduces a
-dynamic context wherein the functions `m-bind` and `m-return` are
-defined for that monad.  Because we're in emacs, and everything just
-sits in one giant rotting pool of symbols, we prefix the monadic
-functions with `m-` to avoid future name collisions.  The `_` at the
-end distinguishes `mlet*_` from `mlet*`.  The only difference between
-these forms is that `mlet*` wraps its `body` in an implicit `m-return`
-so the result of an `mlet*` form is always a monadic value.  Sometimes
-you want this, sometimes you don't.  So the example above would be
-written in the following way using `monads.el`.
+nearest equivalent to what we've called `monadic-let*` is `mlet` (the
+star is removed because monadic binding mostly makes sense as a
+sequential thing) which takes as its first argument a monad
+represented as a hash table.  In addition to the bind-chaining
+described above, it introduces a dynamic context wherein the functions
+`m-bind` and `m-return` are defined for that monad.  Because we're in
+emacs, and everything just sits in one giant rotting pool of symbols,
+we prefix the monadic functions with `m-` to avoid future name
+collisions.  So the example above would be written in the following
+way using `monads.el`.
 	
-    (mlet*_
+    (mlet
      monad-seq
      ((x (range 1 101))
       (y (range 1 101)))
@@ -618,7 +616,7 @@ parser combinator library which is really useful (to me, anyway).
 The monad library can make use of my implementation of Clojure-style
 destructuring bind too.  One can write the above expression as
 
-    (domonad_ monad-seq 
+    (domonad monad-seq 
      [x (range 1 101)
       y (range 1 101)]
      (if (< (+ x y) 10) (m-return (list x y)) nil))
