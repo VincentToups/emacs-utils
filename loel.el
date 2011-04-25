@@ -71,4 +71,19 @@
 	  `(cond-aux ,ifer 
 				 (loel-all ,@head)
 				 (cond-aux ,ifer ,@tail))))))
+
+(defmacro all-aux (bnd &rest other-args)
+  (dlet_ [[g & gs] other-args]
+	(cond ((empty? other-args) #'s)
+		  ((empty? gs) g)
+		  (t 
+		   (with-gensyms 
+ 			(g-hat s s-inner)
+			`(lexical-let ((,ghat ,g))
+			   (goal (,s)
+					 (,bnd (funcall ,ghat ,s))
+					 (goal (,s-inner)
+						   (funcall (all-aux ,bnd ,@gs) ,s-inner)))))))))
+
+
 	   

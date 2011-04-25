@@ -148,8 +148,6 @@
    dirs 
    :initial-value from-loc))
 
-
-
 (word: from {: pos motion -- position :}
   cons 'move swap 2>apply )
 (word: make-location {: position location -- :}
@@ -159,9 +157,6 @@
 
 (word: location {: place -- location :}
 	   1>location-of )
-
-
-
 
 (|||p '(0 0) :castle make-location)
 (|||p '(0 0) :mote add-to-location)

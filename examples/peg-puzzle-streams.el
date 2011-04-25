@@ -112,7 +112,7 @@
 			  (:place ,target)))))
 
 (defun positions ()
-  (mlet**_ monad-stream 
+  (lexical-mlet monad-stream 
 		   ((y (list->stream '(0 1 2 3 4)))
 			(x (list->stream (range 0 (+ y 1)))))
 		   (m-return (pos x y))))
@@ -122,7 +122,7 @@
 
 (lex-defun generate-hops (board)
   (if (solved? board) (stream board nil)
-	(mlet**_ monad-stream  
+	(lexical-mlet monad-stream  
 			 ((pos *positions*)
 			  (dir *directions*)
 			  (hop 
@@ -157,7 +157,7 @@
   (history-cons hop (hop-interpret game hop)))
 
 (defun start-states ()
-  (mlet**_ monad-stream  
+  (lexical-mlet monad-stream  
 		   ((pos (positions))
 			(games (stream 
 					(make-peg-game 
@@ -183,7 +183,7 @@
   (= 15 (count-pegs board)))
 
 (lex-defun game-generate-hops (game)
-  (mlet**_ monad-stream
+  (lexical-mlet monad-stream
 		   ((hop (generate-hops (peg-game-board game)))
 			(new-game (stream-return (apply-hop-to-game game hop))))
 		   (stream-return new-game)))
