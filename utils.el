@@ -1628,7 +1628,7 @@ PRED to control set equality.  Defaults to EQUAL."
    (reconstitute-rest-args arg-alist)))
 
 
-(defmacro let-if (name pred true-branch false-branch)
+(defmacro let-if (name pred true-branch &optional false-branch)
   "Execute an if-statement with NAME bound to the result of PRED in BRANCHES."
   `(let ((,name ,pred))
 	 (if ,name ,true-branch ,false-branch)))
@@ -1973,22 +1973,27 @@ result.  Only works if the difference would fit in 16 bits."
 (defun* notify-send (head &optional (body ""))
   (shf "notify-send \"%s\" \"%s\"" head body))
 
+(defun* notify-send&message (head &optional (body ""))
+  (notify-send head body)
+  (message (concat head "\n" body)))
+
 (setq *pom-timer* nil)
 (defun pom-start ()
   (interactive)
-  (notify-send "Pom: Start work on task NOW.")
+  (notify-send&message "Pom: Start work on task NOW.")
   (setq *pom-timer* 
 		(run-with-timer (* 25 60) nil
 						(lambda ()
-						  (notify-send "Pom: Take a break!")
+						  (notify-send&message "Pom: Take a break!")
 						  (setq *pom-timer* (run-with-timer (* 5 60) nil 
 															(lambda ()
-															  (notify-send "Pom: Break over")
+															  (notify-send&message "Pom: Break over")
 															  (pom-start)))))))
   (run-with-timer (* (/ 25.0 2) 60) nil
-				  (lambda ()
-					(if *pom-timer*
-						(notify-send (format "Pom: %d minutes left." 12.5))))))
+				  (lexical-let ((my-timer *pom-timer*))
+					(lambda ()
+					  (if (equal *pom-timer* my-timer)
+						  (notify-send&message (format "Pom: %d minutes left." 12.5)))))))
 (defun pom-stop ()
   (interactive)
   (if *pom-timer*

@@ -160,6 +160,7 @@
 			(setq i (+ i 1))
 			(push (input-first input) ac )
 			(setq input (input-rest input)))
+	  ;(db-print (list n (length ac) (coerce (reverse ac) 'string)))
 	  (if (= (length ac) n) (list (cons (coerce (reverse ac) 'string) input) nil)))))
 
 (defun =string (str)
@@ -403,7 +404,7 @@
 				  (cons x y)))
 
 (defun parse-string (parser string)
-  (car (car (funcall parser (->in string)))))
+  (car (car (funcall parser (string->parser-input string)))))
 
 (defun parse-sequence (parser sequence)
   (car (car (funcall parser (->in sequence)))))
