@@ -22,7 +22,8 @@
 						(parsed-leftover b-result)))))))))
 
 (parse-ab "abracadabra")
-(parse-ab "atropy")
+(parse-ab "atrophy")
 (parse-ab "oboe")
 
-;;;Controls Home   <<< . >>>
+;;;Controls Home   <<< . >>>   1   2   3   4   5   6   7   8   9   10   11   12   13   14   
+;;;         Index

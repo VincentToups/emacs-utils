@@ -64,6 +64,12 @@
 			 (if (eq (car v) 'Error) v
 			   (funcall f (MaybeVal v))))))
 
+(defun call-bind (monad mv mf)
+  (funcall (tbl monad :m-bind mv mf)))
+
+(defun call-return (monad val)
+  (funcall (tbl monad :m-return) val))
+
 
 
 (defvar monad-id 
@@ -100,7 +106,7 @@ transforms it out of other such functions.")
 	   (fn [c]
 		   (funcall mv (fn [v]
 						   (funcall (mf v) c))))))
-  "The continuation monad.  Construct a function which takes a continuation goes.")
+  "The continuation monad.  Construct a function which takes a continuation.")
 
 (defn call-bind [[:: bind :m-bind] & args]
   (apply bind args))
@@ -534,9 +540,11 @@ the rules of the current monad."
    :initial-value (m-return nil)))
 
 (defun m-mapcar (f xs)
-  "Map F across the monadic values in XS, combining the results
+  "Map F across the values in XS, combining the results
 monadically, according to the current monad."
   (m-seq (mapcar f xs)))
+
+
 
 (example
  (with-monad-dyn monad-seq

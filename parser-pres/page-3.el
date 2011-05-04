@@ -12,7 +12,10 @@
 (defun simple-parser-return (val)
   (lexical-let ((val val))
 	(lambda (input)
-		(pair val input))))
+	  (pair val input))))
+
+(defun nil-parser (input)
+  nil)
 
 
 ;;; This takes a value and returns a parser which "returns" that
@@ -22,4 +25,5 @@
 ;;;
 ;;; It, too, will be of importance later.
 
-;;;Controls Home   <<< . >>>
+;;;Controls Home   <<< . >>>   1   2   3   4   5   6   7   8   9   10   11   12   13   14   
+;;;         Index

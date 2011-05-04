@@ -7,7 +7,7 @@
 ;;; notation.  If you don't care about lisp, feel free to tune this
 ;;; out.
 
-(defmacro parser-let (binding-forms &rest body)
+(defmacro parser-let* (binding-forms &rest body)
   (if (empty? binding-forms) `(progn ,@body)
 	(let* ((binding-form (car binding-forms))
 		   (subsequent-binders (cdr binding-forms))
@@ -15,7 +15,10 @@
 		   (expression (cadr binding-form)))
 	  `(simple-parser-bind ,expression
 						   (lex-lambda (,symbol)
-									   (parser-let ,subsequent-binders ,@body))))))
+									   (parser-let* ,subsequent-binders ,@body))))))
+
+;;; (lex-lambda creates a lexical closure around its arguments,
+;;; otherwise it is a simple lambda expression.
 
 (defun simple-parser-return (val)
   (lexical-let ((val val))
@@ -24,7 +27,7 @@
 
 (find-file-other-frame "~/work/art/monadic-return.png")
 
-(funcall (parser-let ((a-res #'parse-a)
+(funcall (parser-let* ((a-res #'parse-a)
 			 (b-res #'parse-b)
 			 (c-res #'parse-c))
 					 (simple-parser-return (list a-res b-res c-res)))
@@ -32,4 +35,5 @@
 
 ;;; ZING!
 
-;;;Controls Home   <<< . >>>
+;;;Controls Home   <<< . >>>   1   2   3   4   5   6   7   8   9   10   11   12   13   14   
+;;;         Index

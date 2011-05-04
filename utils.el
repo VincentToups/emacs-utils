@@ -2014,6 +2014,9 @@ result.  Only works if the difference would fit in 16 bits."
 	(let-if res (hours-minutes-seconds (small-time-diff pmtm (current-time)))
 			(prog1 res (print (hours-minutes-seconds->string res))) nil)))
 
+(defun swons (lst el)
+  "CONS with its arguments swapped."
+  (cons el lst))
 
   
 

@@ -1,40 +1,55 @@
-;;; Non-trivial Things
+;;; Demystifying the Macro Magic
 
-;;; Ok, what kinds of fun things can we do with this parser monad
-;;; business?
+;;; consider that :
 
-;;; Well, imagine you wish to match either:
-;;; ab
-;;; bc or
-;;; ca
+(let* ((x 10)
+	   (y 11))
+  (+ x y))
 
-;;; We can do this with a single expression using our monadic parser
-;;; combinators.  Observe:
+;;; expands to
 
+(funcall
+ (lambda (x) 
+   (funcall (lambda (y) (+ x y)) 11)) 
+ 10)
 
-(defun parse-a|b|c (input)
-  (unless (empty? input)
-	(string-case (str-head input)
-				 ("a" (pair :found-a (str-tail input)))
-				 ("b" (pair :found-b (str-tail input)))
-				 ("c" (pair :found-c (str-tail input))))))
+;;; or, provacatively:
 
-(defun make-dependent-parser (last-result)
-  (case last-result
-	(:found-a #'parse-b)
-	(:found-b #'parse-c)
-	(:found-c #'parse-a)))
+(defun id-bind (v f)
+  (funcall f v))
+(id-bind 
+ 10 
+ (lambda (x)
+   (id-bind 
+	11 
+	(lambda (y) 
+	  (+ x y)))))
 
-(setq triangle-parser (parser-let ((first-char #'parse-a|b|c)
-								   (second-char (make-dependent-parser first-char)))
-								  (simple-parser-return (cons first-char second-char))))
+;;; or the semantic equivalent.
+;;;
+;;; parser-let*, then:
 
-(funcall triangle-parser "ab")
-(funcall triangle-parser "bc")
-(funcall triangle-parser "ca")
-(funcall triangle-parser "aa")
-(funcall triangle-parser "cq")
+(parser-let* 
+ ((a #'parse-a)
+  (b #'parse-b))
+ (simple-parser-return 
+  (list a b)))
 
-(find-file-other-frame "~/work/art/haskell-curry-says.png")
+;;; expands to:
 
-;;;Controls Home   <<< . 
+(parser-bind 
+ #'parse-a 
+ (lambda (a) 
+   (parser-bind 
+	#'parse-b 
+	(lambda (b) 
+	  (simple-parser-return
+	   (list a b))))))
+
+;;; parser-let* is a generalization of let* which knows about how we
+;;; want to combine parsers.  Monads in general support extension of
+;;; the idea of let*. That is, sequencing dependent computations.
+							   
+							   
+;;;Controls Home   <<< . >>>   1   2   3   4   5   6   7   8   9   10   11   12   13   14   
+;;;         Index
