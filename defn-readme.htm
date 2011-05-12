@@ -1,0 +1,457 @@
+<h1>A Guided Tour of an Implementation </h1>
+
+<h1>of Clojure Destructuring Bind</h1>
+
+<h2>in Emacs Lisp</h2>
+
+<h3>Introduction</h3>
+
+<p>Clojure is a (relatively) new Lisp variant which has attracted a lot
+of attention due to its modern features and close relationship with
+the JVM.  Emacs Lisp is a lisp so antiquated that it attracts more
+ridicule than plaudits.  This document is an attempt to bring some of
+the nicer syntactical features from Clojure into Elisp.</p>
+
+<p>Why?  I spend a lot of time in Emacs, which I use to organize notes,
+experiment logs and to coordinate other programming languages.
+Because I have limited opportunity to use other languages in my day to
+day life, I like to implement features from other languages in Elisp
+so that I get to use them on a daily basis.  In the same vein I've
+implemented something similar to Clojure's multimethods, syntax for
+monadic operation, many monads, lazy lists, and a stack-based
+concatenative language inspired by Factor.  I'm currently working on
+an implementation of Kanren, the logic language described in "The
+Reasoned Schemer."  This archive includes just the projects described
+here, but all my code is available on <a href="https://github.com/VincentToups/emacs-utils" title="Github">github</a>.</p>
+
+<h3>Running the Code</h3>
+
+<p>This code requires GNU Emacs 23.1.1.  Extract the files located with
+this readme to somewhere convenient.  Then start emacs with <code>emacs
+-q</code>.  In the scratch buffer, execute:</p>
+
+<pre><code>(add-to-list 'load-path &lt;Location/of/files/&gt;)
+</code></pre>
+
+<p>You should then be able to <code>(require 'defn)</code> and execute the examples
+in this document and/or play with the library.  </p>
+
+<h3>Destructuring Bind</h3>
+
+<p>Clojure owes a certain debt to the statically typed functional
+languages.  It's emphasis on Lazy values calls to mind languages like
+Haskell, and its destructuring bind forms refer to the pattern
+matching (efficiently) afforded by static type systems like those in
+Standard ML and its variants.  Destructuring bind has appeared in
+dynamic languages like Lua and Python, where simple tuples can be
+destructured, but Clojure's support is somewhat more extensive in that
+it extends to generic destructuring of sequences and tables.  A few
+examples will illustrate the facility.</p>
+
+<p>In Scheme, for instance, we might wish to swap two numbers held in the
+first and second slot of a list.</p>
+
+<pre><code>(define (swap lst) 
+ (list (cadr lst) (car lst)))
+</code></pre>
+
+<p>In Clojure we could specify how to extract values from the arguments
+of a function right in the function definition:</p>
+
+<pre><code>(defn swap [[a b]] (list a b))
+</code></pre>
+
+<p>(Clojure's binding forms are always literal vectors.)  Here <code>swap</code>
+takes only one argument, but it binds two names.  The inner <code>[a b]</code>
+expression indicates that the single argument is expected to be a
+list, and that its first and second values should be bound to the
+symbols <code>a</code> and <code>b</code> respectively.  Clojure's destructuring bind
+supports recursive binding forms.  If, for instance, we wanted to
+write a function which accepts a single list, whose second element is
+a list, whose first value we wish to extract, we could write:</p>
+
+<pre><code>(defn extract [[_ [a]]] a)
+</code></pre>
+
+<p>Where we have nested the destructuring deep into the sequence to pull
+out <code>a</code>.  Error checking aside, this is a pretty nice feature,
+particularly because Clojure <em>also</em> allows destructuring on tables,
+which have their own source-level representation.  To write a function
+which pulls out the values in a table located at keys <code>:x</code> and <code>:y</code>
+and returns them in a flat list, we can write:</p>
+
+<pre><code>(defn extract [{a :x b :y}] (list a b))
+</code></pre>
+
+<p>Suppose the value at <code>x</code> were a list and we wished to get its second
+element:</p>
+
+<pre><code>(defn extract [{[_ part] :x}] part)
+</code></pre>
+
+<p>Would do the trick.  We can combine, recursively, table and sequence
+destructuring syntax.  This project is an implementation of this
+feature in Emacs Lisp.</p>
+
+<p>In short, Clojure's destructuring bind is a mini-language for
+describing access to data structures.</p>
+
+<h3>Bonus Material: Recur</h3>
+
+<p>Tail call optimization is a controversial subject in some arenas.  The
+feature was somewhat famously kept out of Python by its "dictator for
+life."  Scheme implementations, on the other hand, are required to
+support this feature.  More for reasons related to the JVM than any
+political sensitivity, Clojure takes a middle path: tail calls to
+"oneself" can be made by virtue of an explicit form, <code>recur</code>, which
+resembles a function call but can only be invoked from tail position,
+and which reuses the current stack frame instead of creating a new
+one.  This allows many basic algorithms which depend on tail calls for
+elegant expression to be written naturally in Clojure.</p>
+
+<p>This library also allows the use of a <code>recur</code> special form, statically
+checked to be only from tail position.  </p>
+
+<h3>Syntactic &amp; Other Notes</h3>
+
+<p>Clojure supports tables at the level of source code via a curly braces
+notation:</p>
+
+<pre><code>{:x 10 :y 11}
+</code></pre>
+
+<p>Would be the table with keys <code>:x</code>, <code>:y</code> pointing to 10 and 11
+respectively.  Unfortunately, Emacs Lisp does not provide facilities
+to extend the reader, which we could use to create a syntax for tables
+if we were using (say) Common Lisp.  We'll be using a quasi-ad-hoc
+solution instead.  My standard library provides functions to create
+tables succinctly:</p>
+
+<pre><code>(tbl! :x 10 :y 11)
+</code></pre>
+
+<p>is equivalent to the above Clojure.  For destructuring syntax we will
+use a vector to represent sequences (<code>[a b c]</code>) and a vector with a
+special head token to represent tables (<code>[:: a :x b :y]</code>).  That is,
+<code>::</code> indicates an expression represents a table, rather than sequence
+destructuring.</p>
+
+<p>Additionally, we'll allow the table syntax to destructure
+association-lists, since these are common table surrogates in other
+lisp dialects and because they can be made persistant (as data
+structures) more easily than Emacs Lisp's tables.  This has no impact
+on the syntax for destructuring bind, however.  </p>
+
+<p>Finally, this implementation uses a few non-standard special forms
+from my standard library which bear remarking upon.  The form
+<code>let-seq</code>, defined in <code>utils.el</code> is a simple form for destructuring
+lists.  It creates a context where a series of symbols are bound to
+the values in a list:</p>
+
+<pre><code>(let-seq (a b c) (list 3 2 1) 
+  (list a b c))
+</code></pre>
+
+<p>Evaluates to '(1 2 3). </p>
+
+<p>The form <code>let-tbl</code> allows a very simple form of table destructuring.  </p>
+
+<pre><code>(let-tbl 
+ ((x :a)
+  (y :b))
+ (tbl! :a 10 :b 11)
+ (+ x y))
+</code></pre>
+
+<p>Evaluates to 21.</p>
+
+<p>Both <code>let-seq</code> and <code>let-tbl</code> are used to parse the destructuring
+syntax only.  Destructuring bind itself does not expand into them,
+basically because destructuring can have recursive structures and
+these forms are "flat".</p>
+
+<p>The implementation makes use of other functions in the <code>utils.el</code>
+library, but these are the most conspicuous departures from recognize-
+able lisp.  </p>
+
+<p>On a final note, Emacs Lisp is, by default, a dynamically scoped
+language.  Functional programming depends a lot on closures (even your
+ad asks "Do you think in closures?"), and so you'll see the
+<code>lexical-let</code> form throughout the source code.  This is form from a
+partial implementation of Common Lisp that ships with Emacs which
+creates a lexical scope rather than a dynamic one.  Lexical scope is a
+little more expensive than dynamic scope in Emacs, so you'll see this
+form peppered throughout the code where necessary, rather than used
+exclusively.</p>
+
+<h3>Implementation Sketch</h3>
+
+<p>Any destructuring bind expression will ultimately expand to a <code>let*</code>
+form in Emacs Lisp.  Eg: </p>
+
+<pre><code>(dlet [[x y] (list 1 2)]
+   (+ x y))
+</code></pre>
+
+<p>Expands to something not unlike:</p>
+
+<pre><code>(let* ((_ (list 1 2))
+       (x (elt _ 0))
+       (y (elt _ 1)))
+    (+ x y))
+</code></pre>
+
+<p>(Where <code>_</code> in the actual expansion would be a fresh symbol for the
+purposes of macro hygiene, probably generated with <code>gensym</code>.)</p>
+
+<p>The task of this project is to parse the clojure-style forms and
+convert them into a series of symbol/value pairs for a <code>let*</code>
+expression.  </p>
+
+<p>Two sub-parsers are defined in the files <code>parse-seq-binder.el</code> and
+<code>parser-table-binder.el</code>, for sequences and tables respectively.
+These parsers check and extract the syntax of their respective types,
+but do not recursively parse sub-parts.  Recursive parsing is
+supported at a higher level, essentially by trampolining.  </p>
+
+<p>Both sub-parsers are ad-hoc parsers which fold series of state
+dependent functions over the sequence of tokens representing the
+binding expression.  Ultimately they return a list of important
+information about each binding expression which allows the equivalent
+pure emacs lisp <code>let</code> forms to be constructed.</p>
+
+<p>The action of these parsers is coordinated in <code>defn.el</code>'s
+<code>handle-binding</code> function which handles detecting which type of binder
+needs to be interpreted and dispatching to the appropriate parser.
+Recursive parsing of binding forms is supported at this level.  </p>
+
+<p>Emacs Lisp enforces a max-nesting depth and so the slightly more
+obvious strategy of creating nested-<code>let*</code>s is put aside in favor of
+passing around an accumulator for the entire sequence of binding
+pairs.  Hence, the functions <code>handle-binding</code>, <code>handle-tbl-binding</code>
+and <code>handle-seq-bindind</code> sport an additional argument <code>previous-lets</code>
+so that a list of <code>let*</code> binders can be collected.  There is much room
+for optimization in this collection of of <code>let</code> forms, but since
+macro-expansion is itself pretty expensive in Elisp for various
+reasons, in practice we'll almost always compile code using
+destructuring.  The Emacs Lisp byte compiler is capable of performing
+these optimizations for us.</p>
+
+<p>Once a sequence of symbol/value pairs is constructed, the rest of the
+work of the macro is essentially bookkeeping.  <code>fn</code> is the form which
+does most of the work, since <code>defn</code> expands in terms of <code>fn</code>.  The
+body of the expanded <code>fn</code> is a lambda expression.  This expression
+takes any number of arguments and checks this number against the
+arities of the binders it was defined with.  If it finds a match, it
+invokes the appropriate body - each body wrapped in a <code>let*</code> form whose
+binding expressions were generated by parsing and expanding the
+appropriate destructuring expression.  </p>
+
+<p>The body of the function is expanded in slightly different ways
+depending on whether the function tries to call itself recursively
+using <code>recur</code>.</p>
+
+<h4>Recur Implementation</h4>
+
+<p>Tail recursion is similar to a loop in that it essentially indicates
+that we re-execute a set of forms in a context where variables have
+been bound to new values.  This library supports tail recursion by
+using a codewalker to find and appropriately expand <code>recur</code> forms in
+the body of a <code>recur</code> supporting form, enclosing the entire body in a
+while loop.  An invisible loop sentinel controls whether we "recur"
+when execution terminates or whether we rebind the appropriate
+variables (using a <code>setq</code> expression) and execute the body again.</p>
+
+<p>Because we are destructively updating the variables in our recursive
+context, it is particularly important that we check whether <code>recur</code> is
+invoked from tail position.  If we were to expand a <code>recur</code> form in
+any context where there were subsequent expressions which depended on
+the values in the scope, these expressions would behave anomalously.
+Hence, we need a codewalker to <em>check</em> each occurrence of <code>recur</code> is
+in tail position.  </p>
+
+<p>Given an expression <code>expr</code>, a tail position is any position for which
+there are no subsequent expressions to be evaluated.  For example:</p>
+
+<pre><code>(progn a b c)
+</code></pre>
+
+<p>In the above, <code>c</code> is in tail position.  </p>
+
+<pre><code>(progn a b (recur c))
+</code></pre>
+
+<p>would be a legal place for recur to occur, but:</p>
+
+<pre><code>(progn (recur a) b c)
+</code></pre>
+
+<p>Would produce an error because <code>(recur a)</code> occurs before <code>b</code> or <code>c</code>
+are evaluated.  In an <code>if</code> statement, <code>tail-ness</code> is preserved by
+either branch of the statement.  So if an <code>if</code> statement is in tail
+position, either branch is also in tail position, because they are
+mutually exclusive.  Similar reasoning applies to <code>cond</code> and other
+special forms.</p>
+
+<p>The codewalker implemented in the second half of <code>defn.el</code> bears this
+basic idea out, covering the entire bestiary of basic Emacs Lisp
+forms.  Because Emacs Lisp is extensible via macros, our codewalker
+cannot understand all possible un-expanded Emacs Lisp fragments.
+Hencec this library calls <code>macroexpand-all</code> on code before it is
+walked in order boil down any Elisp into a form containing only
+primitive expressions.  The macro <code>dsetq</code> is then used to expand
+<code>recur</code> into an expression which sets the local variables to their new
+values.</p>
+
+<p>If the codewalker detects a <code>recur</code> in non-tail position, it produces
+an error.</p>
+
+<h4>Note on Recur and Lexical Scope</h4>
+
+<p>This version of recursion will not handle lexically scoped variables
+correctly because it mutates the context for recursion without
+considering whether a lambda expression or other artifact is hanging
+onto a reference to some value.  Supporting the correct behavior would
+require a much more complex codewalker, and, in any case the need is
+somewhat obviated by the requirement that Emacs Lisp programmers
+explicitly indicate a desire for lexical scope using a <code>lexical-let</code>
+expression.  Each <code>lexical-let</code> then closes over its own version of
+the variables in scope.  So even though we are employing mutation:</p>
+
+<pre><code>(setq closures (dloop [i 0
+                          acc nil]
+                      (if (= i 10) (reverse acc)
+                        (recur (+ i 1) 
+                               (cons
+                                (lexical-let ((x i))
+                                  (lambda () x)) acc)))))
+</code></pre>
+
+<p>Which collects a series of <code>lambda</code>'s with different values of <code>i</code>,
+the following code produces the correct values:</p>
+
+<pre><code>(funcall (elt closures 0)) -&gt; 0
+(funcall (elt closures 4)) -&gt; 4
+</code></pre>
+
+<p>etc.</p>
+
+<p>Emacs Lisp will support real lexical scope in the next release of
+emacs.  How that bodes for this project is unknown.</p>
+
+<h3>Example Usage</h3>
+
+<p>Destructuring bind lets us construct some fairly concise
+implementations of certain functions.  The function <code>prod,</code> which
+takes a list and returns the product of its elements, might be
+implemented with <code>(lambda (lst) (reduce #'* lst))</code>, of course, but it
+makes a nice example:</p>
+
+<pre><code>(require 'defn)
+(defn prod
+ ;;; prod will have two bodies, differentiated by arity
+ ([[head &amp; tail :as list] acc]
+  (if list (recur tail (* acc head)) acc))
+ ([list]
+  (prod list 1)))
+</code></pre>
+
+<p>This example demonstrates dispatch based on arity, destructuring of a
+sequence (first argument, first body) and recursion.</p>
+
+<pre><code>(prod '(1 2 3 4 5 6 7)); -&gt; 5040
+</code></pre>
+
+<p>The form <code>defn</code> always compiles its innards, so the resulting code is
+pretty zippy.  Note that when making a call to an alternate arity
+version of the same function, we must use a regular function
+invokation rather than <code>recur</code>.  We'd get a binding error otherwise.</p>
+
+<p>Suppose we are using an association list to represent people in some
+kind of database.  People have first and last names, but they might
+not have a middle name, so both:</p>
+
+<pre><code>'((:first-name "George") (:last-name "Washington"))
+'((:first-name "Timofey") (:middle-name "Pavlovich") (:last-name
+  "Pnin"))
+</code></pre>
+
+<p>are legitimate "persons" (neglecting that "Pavlovich" is a patronym
+rather than a proper middle name).  How might we write a function to
+extract the middle name succinctly?</p>
+
+<pre><code>(defn extract-middle-name 
+      [[:: middle :middle-name :or 
+       (alist&gt;&gt;
+        :middle-name :NMI)]]
+     middle)
+
+(extract-middle-name '((:first-name "Timofey") 
+                       (:middle-name "Pavlovich") 
+                       (:last-name "Pnin"))); -&gt; "Pavlovich"
+
+(extract-middle-name '((:first-name "George") (:last-name
+"Washington"))); -&gt; :NMI
+</code></pre>
+
+<p>(NMI stands for "No Middle Name")</p>
+
+<p>The function <code>extract-middle-name</code> demonstrates the table
+destructuring syntax and the use of an <code>:or</code> clause, which specifies
+an alternative expression to destructuring the event that any
+destructuring of the input fails.  It can be used to provide default
+values for variables.  </p>
+
+<p>Destructuring bind in Clojure provides one other feature which is
+supported by this library.  Tables may use a short hand <code>:keys</code>
+expression:</p>
+
+<pre><code>(defn demo-keys [[:: :keys [a b c]]] (list a b c))
+(demo-keys 
+  (alist&gt;&gt; :a 'x :b 'y :c 'z))
+</code></pre>
+
+<p>which is equivalent to:</p>
+
+<pre><code>(defn demo-keys-eqv [[:: a :a b :b c :c]] (list a b c))
+</code></pre>
+
+<p>That about covers it!</p>
+
+<h3>If I'd Known Then What I Know Now</h3>
+
+<p>This project is a little more than a year old, and in the intervening
+time, I've learned a few new things which would have changed,
+somewhat, the implementation.  For one, the more complete
+understanding of the destructuring bind syntax which I developed while
+creating this library would probably have informed a more elegant
+implementation.  There are definite signs of gradual accretion in this
+code.  A complete rewrite is on my todo list.</p>
+
+<p>More concretely, I now recognize that parsing the binding expressions
+is really a job for less ad-hoc parsing strategy.  Subsequent to this
+project, I produced an implementation of monadic parser combinators
+based on SMUG, for Common Lisp.  If I were to re-implement this
+project now, I'd use a combinator approach for parsing.  For another
+project I've written a Common-Lisp lambda list parser using parser
+combinators, which is in <code>simplified-lambda-list-parser.el</code>. That
+library should convey the style of what a more informed implementation
+might look like (although CL-lambda lists are simpler than Clojure
+destructuring forms).  See also <code>monad-parse.el</code> and <code>monads.el</code>,
+which are my implementations of monadic operation and parsing, though
+more closely based on previous work than this library.</p>
+
+<p>The question of <code>recur</code> is separate, basically, from the destructuring
+bind problem, and handling the two things together is responsible for
+some of the mess of this implementation.  I've subsequently factored
+out <code>recur</code> support into a separate library.  A rewrite would concern
+itself mostly with destructuring bind, and use the <code>recur.el</code> library
+to support self-recursion.  The implementation in <code>recur.el</code> is also a
+little bit cleaner, and supports a better error checking model than
+the one in this file.  I've included it, if the reader is interested.
+There are also some stylistic differences - the codewalker dispatches
+to a function for each form encountered rather than doing processing
+in place, for instance.  This makes for a more readable
+implementation.</p>
+
+<p>Thanks for reading, I hope you've found it interesting.</p>
