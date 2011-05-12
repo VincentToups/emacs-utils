@@ -404,7 +404,7 @@ somewhat, the implementation.  For one, the more complete
 understanding of the destructuring bind syntax which I developed while
 creating this library would probably have informed a more elegant
 implementation.  There are definite signs of gradual accretion in this
-code.
+code.  A complete rewrite is on my todo list.
 
 More concretely, I now recognize that parsing the binding expressions
 is really a job for less ad-hoc parsing strategy.  Subsequent to this
