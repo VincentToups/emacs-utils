@@ -31,7 +31,7 @@ Other forms produce an error."
 and are hence delayed with a lambda expression."
   `(lambda () ,form))
 
-(defun handle-seq-binder (binder expr previous-lets)
+(defun handle-seq-binding (binder expr previous-lets)
   "This function takes a binding expression (BINDER) and a series
 of value-producing expressions (EXPR) and produces a list of
 name-expression pairs which represents that destructuring.  These
@@ -74,15 +74,15 @@ where binding forms need to be accumulated."
 								`(elt-or ,as-sym ,i (elt ,or-form-name ,i))
 							  `(elt ,as-sym ,i))))))))
 
-										; (handle-seq-binder [a b c d :or [1 2 3 4]] '(list 1 2 3 4) '())
-										; (handle-seq-binder [] '() '())
+										; (handle-seq-binding [a b c d :or [1 2 3 4]] '(list 1 2 3 4) '())
+										; (handle-seq-binding [] '() '())
 
 (dont-do
  ;;; These `dont-d` expressions are not evaluated when the file is loaded,
  ;;; but usually contain the equivalent of unit tests.
- (handle-seq-binder [x] '(1) '())
+ (handle-seq-binding [x] '(1) '())
  
- (handle-seq-binder [x [a b]] '(list 1 (list 1 2)) '())
+ (handle-seq-binding [x [a b]] '(list 1 (list 1 2)) '())
  ;; ([lambda-seq-as-sym99989 (list 1 (list 1 2))] 
  ;;  [x (elt lambda-seq-as-sym99989 0)] 
  ;;  [lambda-seq-as-sym99995 (elt lambda-seq-as-sym99989 1)] 
@@ -160,7 +160,7 @@ This is not used here, but is used when called recursively."
   (case (binder->type binder) 
 	(:symbol (append previous-lets (list (vector binder expr))))
 										;symbol binding is trivial.
-	(:seq (handle-seq-binder binder expr previous-lets))
+	(:seq (handle-seq-binding binder expr previous-lets))
 	(:tbl (handle-tbl-binding binder expr previous-lets))))
 
 										; (handle-binding [a [:: [a b :as lst] :s :as table] & rest] 10)
@@ -345,7 +345,7 @@ ARITY is exact and numericall equal to N, match.  If ARITY is
 										; (arity-match 2 '(2 exactly))
 										; (arity-match 2 '(3 -less))
 
-										; (handle-seq-binder [a b c & rest :or (list 10 11 12 13 14 15 16)] '(1 2 3 4 5) '())
+										; (handle-seq-binding [a b c & rest :or (list 10 11 12 13 14 15 16)] '(1 2 3 4 5) '())
 
 										; (arity-match 2 '(3 +more))
 
@@ -433,13 +433,13 @@ See DEFN for more extensive examples.
 (defmacro* fn_ (&rest rest)
   "See FN.  This macro is identical except it binds its variables with a dynamic scope."
   (cond
-   ((vectorp (car rest))
-	`(fn_ (,(car rest) ,@(cdr rest))))
+   ((vectorp (car rest)) ;;; detect single arity FN
+	`(fn_ (,(car rest) ,@(cdr rest)))) ;;; recursive macro expansion.
    ((listp (car rest))	   ; set of different arity binders/bodies
 	(let ((args-sym (gensym))
 		  (numargs (gensym)))
 	  `(lambda (&rest ,args-sym) 
-		 (let ((,numargs (length ,args-sym)))
+		 (let ((,numargs (length ,args-sym))) ;;; count number of args for arity match.
 		   (cond
 			,@(suffix (loop for pair in rest append
 							(let* ((binders (car pair))
@@ -450,10 +450,10 @@ See DEFN for more extensive examples.
 									(if uses-recur? 
 										`(dloop-single-arg_
 										  ,(gen-fn-rec-binding binders args-sym)
-										  ,@expanded-body)
+										  ,@expanded-body) ;;; body with recur support
 									  `(let* ,(mapcar 
 											   (lambda (x) (coerce x 'list)) 
-											   (handle-binding binders args-sym)) ,@body))))
+											   (handle-binding binders args-sym)) ,@body)))) ;;; body without recur support.
 							  (assert 
 							   (vectorp binders) 
 							   t 
@@ -608,10 +608,10 @@ destructuring and the :as keyword.
 LOOP-SENTINAL is the symbol which determines if the recursion
 continues.  BINDING-FORMS are expeanded into a set statement."
   (if parent-is-tail
-  `(progn 
-	 (setq ,loop-sentinal t)
-	 (dsetq ,@binding-forms (list ,@(cdr form))))
-  (error "Recur expression \"%S\" not in tail position in %s." form currently-defining-defn)))
+	  `(progn 
+		 (setq ,loop-sentinal t)
+		 (dsetq ,@binding-forms (list ,@(cdr form))))
+	(error "Recur expression \"%S\" not in tail position in %s." form currently-defining-defn)))
 
 (defun let-likep (form)
   "Detect let-like forms (let, flet, labels, lexical-let,
@@ -733,7 +733,7 @@ Bindings support full destructuring."
 		 (loop while ,loop-sentinal do
 			   (setq ,return-value (progn
 									 (setq ,loop-sentinal nil)
-									 ,(expand-recur `(progn ,@body) t loop-sentinal binding-parts))))
+									 ,(expand-recur `(progn ,@body) t loop-sentinal (list (list->vector binding-parts)) ))))
 		 ,return-value))))
 
 (defmacro* dloop_ (bindings &body body)
@@ -748,7 +748,7 @@ Bindings support full destructuring."
 		 (loop while ,loop-sentinal do
 			   (setq ,return-value (progn
 									 (setq ,loop-sentinal nil)
-									 ,(expand-recur `(progn ,@body) t loop-sentinal binding-parts))))
+									 ,(expand-recur `(progn ,@body) t loop-sentinal (list (list->vector binding-parts)) ))))
 		 ,return-value))))
 
 
