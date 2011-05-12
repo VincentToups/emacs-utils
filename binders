@@ -1,0 +1,4 @@
+defn.el:(defun forms->binders (fs)
+defn.el:(defun forms->expressions (fs)
+utils.el:(defmacro let-repeatedly (name &rest forms-to-apply)
+utils.el:		   forms-to-apply)

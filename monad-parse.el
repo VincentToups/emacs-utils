@@ -160,7 +160,7 @@
 			(setq i (+ i 1))
 			(push (input-first input) ac )
 			(setq input (input-rest input)))
-	  ;(db-print (list n (length ac) (coerce (reverse ac) 'string)))
+										;(db-print (list n (length ac) (coerce (reverse ac) 'string)))
 	  (if (= (length ac) n) (list (cons (coerce (reverse ac) 'string) input) nil)))))
 
 (defun =string (str)
@@ -187,6 +187,12 @@
 				   (if (funcall lpred x)
 					   (parser-return x)
 					 (parser-fail))))))
+
+(defun* =is (object &optional (pred #'eq))
+  (lexical-let ((object object)
+				(pred pred))
+	(=satisfies 
+	 (lambda (x) (funcall pred object x)))))
 
 (lexical-let ((digits (coerce "1234567890" 'list)))
   (defun digit-char? (x)
@@ -250,13 +256,32 @@
   (=let* [_ (=char char)]
 		 (coerce (list _) 'string)))
 
+(defun =point ()
+  (=satisfies (par #'eq ?.)))
+
+(defun =decimal-part ()
+  (=simple-let*
+   ((dot (=point))
+	(rest (=one-or-more (=digit-char))))
+   (coerce (cons dot rest) 'string)))
+
+(defun =integer-part ()
+  (=simple-let* 
+   ((digits (=zero-or-more (=digit-char))))
+   (coerce digits 'string)))
+
+(defun =number->number ()
+  (=simple-let* 
+   ((int (=integer-part))
+	(dec (=maybe (=decimal-part))))
+   (string-to-number (concat int dec))))
 
 (lex-defun =or2 (p1 p2)
-		   (lambda (input)
-			 (or (funcall p1 input)
-				 (funcall p2 input))))
+  (lambda (input)
+	(or (funcall p1 input)
+		(funcall p2 input))))
 (lex-defun =or (&rest ps)
-		   (reduce #'=or2 ps))
+  (reduce #'=or2 ps))
 
 ;; (lex-defun =or (parser &rest parsers)
 ;; 		   (lambda (input)
@@ -274,11 +299,12 @@
 ;; 			  parsers)))
 
 (lex-defun =not (parser)
-		   (lambda (input)
-			 (let ((result (funcall parser input)))
-			   (if result
-				   nil
-				 (list (cons t input))))))
+  b
+  (lambda (input)
+	(let ((result (funcall parser input)))
+	  (if result
+		  nil
+		(list (cons t input))))))
 
 (defmacro* =let* (forms &body body)
   `(lexical-domonad< monad-parse ,forms ,@body))
@@ -289,16 +315,16 @@
 		`(parser-bind ,@(cdr (car bindings))
 					  (lex-lambda (,symbol) 
 								  (=simple-let* ,(cdr bindings)
-												 ,@body))))
+												,@body))))
 	`(parser-return (progn ,@body))))
 
 (lex-defun =and2 (p1 p2)
-		   (lex-lambda (input)
-					   (and (funcall p1 input)
-							(funcall p2 input))))
+  (lex-lambda (input)
+			  (and (funcall p1 input)
+				   (funcall p2 input))))
 
 (lex-defun =and (&rest ps)
-		   (reduce #'=and2 ps))
+  (reduce #'=and2 ps))
 
 ;; (lex-defun =and (p1 &rest ps)
 ;; 		   (=let* [result p1]
@@ -307,17 +333,17 @@
 ;; 					result)))
 
 (lex-defun =and-concat2 (p1 p2)
-		   (=let* [r1 p1
-					  r2 p2]
-				  (concat r1 r2)))
+  (=let* [r1 p1
+			 r2 p2]
+		 (concat r1 r2)))
 
 (lex-defun =and-concat (&rest ps)
-		   (reduce #'=and-concat2 ps))
+  (reduce #'=and-concat2 ps))
 
 (lex-defun parser-maybe (parser)
-		   (=or parser (parser-return nil)))
+  (=or parser (parser-return nil)))
 (lex-defun =maybe (parser)
-		   (=or parser (parser-return nil)))
+  (=or parser (parser-return nil)))
 
 
 (defun letters ()
@@ -335,73 +361,102 @@
 ;; 					   (cons x xs))
 ;; 				(parser-return nil)))
 
-(lex-defun zero-or-one (parser)
-		   (=or (=let* [_ parser]
-					   _)
-				(parser-return nil)))
+(lex-defun =zero-or-one (parser)
+  (=or (=let* [_ parser]
+			  _)
+	   (parser-return nil)))
 
 (lex-defun zero-or-one-list (parser)
-		   (=or (=let* [_ parser]
-					   (list _))
-				(parser-return nil)))
+  (=or (=let* [_ parser]
+			  (list _))
+	   (parser-return nil)))
 
 (lex-defun zero-or-plus-more (parser)
-		   (lambda (input)
-			 (let ((terminals nil)
-				   (continuers (funcall (zero-or-one-list parser) input))
-				   (done nil)
-				   (res nil))
-			   (loop while (not done) do
-					 (let ((old-continuers continuers))
-					   (setq continuers nil)
-					   (loop while old-continuers
-							 do
-							 (let* ((sub-parser-state (pop old-continuers))
-									(state (car sub-parser-state))
-									(sub-input (cdr sub-parser-state))
-									(res (funcall parser sub-input)))
-							   (if res
-								   (setq continuers
-										 (append continuers (mapcar 
-															 (lambda (sub-res)
-															   (cons
-																(suffix state (car sub-res))
-																(cdr sub-res)))
-															 res)))
-								 (push sub-parser-state terminals)))))
-					 (if (empty? continuers)
-						 (setq done t)))
-			   terminals)))
+  (lambda (input)
+	(let ((terminals nil)
+		  (continuers (funcall (zero-or-one-list parser) input))
+		  (done nil)
+		  (res nil))
+	  (loop while (not done) do
+			(let ((old-continuers continuers))
+			  (setq continuers nil)
+			  (loop while old-continuers
+					do
+					(let* ((sub-parser-state (pop old-continuers))
+						   (state (car sub-parser-state))
+						   (sub-input (cdr sub-parser-state))
+						   (res (funcall parser sub-input)))
+					  (if res
+						  (setq continuers
+								(append continuers (mapcar 
+													(lambda (sub-res)
+													  (cons
+													   (suffix state (car sub-res))
+													   (cdr sub-res)))
+													res)))
+						(push sub-parser-state terminals)))))
+			(if (empty? continuers)
+				(setq done t)))
+	  terminals)))
 
 (lex-defun zero-or-more 
-		   (parser)
-		   (lexical-let ((zero-or-one-parser (zero-or-one parser)))
-			 (lex-lambda (input)
-						 (let* ((sub-state (car (funcall (zero-or-one-list parser) input)))
-								(acc (car sub-state))
-								(done (not (car sub-state))))
+  (parser)
+  (lexical-let ((zero-or-one-parser (zero-or-one parser)))
+	(lex-lambda (input)
+				(let* ((sub-state (car (funcall (zero-or-one-list parser) input)))
+					   (acc (car sub-state))
+					   (done (not (car sub-state))))
 
-						   (if done (list sub-state)
-							 (progn 
+				  (if done (list sub-state)
+					(progn 
 
-							   (loop while (not done) do
-									 (let* ((next-input (cdr sub-state))
-											(next-sub-state 
-											 (car (funcall zero-or-one-parser next-input)))
-											(res (car next-sub-state)))
-									   (if res (progn
-												 (push res acc)
-												 (setq sub-state next-sub-state))
-										 (setq done t))))
-							   (list (cons (reverse acc) (cdr sub-state)))))))))
+					  (loop while (not done) do
+							(let* ((next-input (cdr sub-state))
+								   (next-sub-state 
+									(car (funcall zero-or-one-parser next-input)))
+								   (res (car next-sub-state)))
+							  (if res (progn
+										(push res acc)
+										(setq sub-state next-sub-state))
+								(setq done t))))
+					  (list (cons (reverse acc) (cdr sub-state)))))))))
+
+(lex-defun =zero-or-more 
+  (parser)
+  (lexical-let ((zero-or-one-parser (zero-or-one parser)))
+	(lex-lambda (input)
+				(let* ((sub-state (car (funcall (zero-or-one-list parser) input)))
+					   (acc (car sub-state))
+					   (done (not (car sub-state))))
+
+				  (if done (list sub-state)
+					(progn 
+
+					  (loop while (not done) do
+							(let* ((next-input (cdr sub-state))
+								   (next-sub-state 
+									(car (funcall zero-or-one-parser next-input)))
+								   (res (car next-sub-state)))
+							  (if res (progn
+										(push res acc)
+										(setq sub-state next-sub-state))
+								(setq done t))))
+					  (list (cons (reverse acc) (cdr sub-state)))))))))
 
 
 
 (lex-defun one-or-more 
-		   (parser)
-		   (=let* [x parser
-					 y (zero-or-more parser)]
-				  (cons x y)))
+  (parser)
+  (=let* [x parser
+			y (zero-or-more parser)]
+		 (cons x y)))
+
+(lex-defun =one-or-more 
+  (parser)
+  (=let* [x parser
+			y (zero-or-more parser)]
+		 (cons x y)))
+
 
 (defun parse-string (parser string)
   (car (car (funcall parser (string->parser-input string)))))
@@ -421,7 +476,6 @@
   (=satisfies (f-and 
 			   #'symbolp 
 			   (par #'eq sym))))
-
 
 (provide 'monad-parse)
 

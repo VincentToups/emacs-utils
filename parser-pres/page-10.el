@@ -7,23 +7,25 @@
   (+ x y))
 
 ;;; expands to
-
-(funcall
- (lambda (x) 
+(comment
+ (funcall
+  (lambda (x) 
    (funcall (lambda (y) (+ x y)) 11)) 
- 10)
+  10)
+)
 
 ;;; or, provacatively:
-
+(comment 
 (defun id-bind (v f)
   (funcall f v))
+
 (id-bind 
  10 
  (lambda (x)
    (id-bind 
 	11 
 	(lambda (y) 
-	  (+ x y)))))
+	  (+ x y))))))
 
 ;;; or the semantic equivalent.
 ;;;
@@ -37,6 +39,8 @@
 
 ;;; expands to:
 
+(comment
+
 (parser-bind 
  #'parse-a 
  (lambda (a) 
@@ -45,6 +49,7 @@
 	(lambda (b) 
 	  (simple-parser-return
 	   (list a b))))))
+)
 
 ;;; parser-let* is a generalization of let* which knows about how we
 ;;; want to combine parsers.  Monads in general support extension of

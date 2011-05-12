@@ -60,18 +60,16 @@
   `(lex-defun ,name (,(car arg))
 	 ,@body))
 
-
-
 (defgoal s (v) (stream v))
 (defgoal fail (u) choice-zero)
 
 (lex-defun =%= (v w)
   (goal (s)
 		(let ((ucation
-			   (unify v w s)))
+			   (loel-unify v w s)))
 		  (cond 
-		   (ucation (funcall s ucation))
-		   (t (funcall fail s))))))
+		   (ucation (s ucation))
+		   (t (fail s))))))
 
 (defmacro fresh (vars &rest body)
   (with-gensyms 
@@ -81,18 +79,77 @@
 			  ,(loop for var in vars collect `(,var (var ,var)))
 			(funcall (loel-all ,@body) ,u)))))
 
-(defmacro loel-run (n varlst &body body)
+(defvar nil-sub nil)
+
+(recur-defun* walk-sub (v sub)
+  (let-if asc (alist sub v) 
+		  (if (var? asc)
+			  (recur asc sub)
+			asc)
+		  v))
+
+(defun* walk-sub* (v sub)
+  (let ((v (walk-sub v sub)))
+	(cond 
+	 ((var? v) v)
+	 ((listp v)
+	  (cons 
+	   (walk-sub* (car v) sub)
+	   (walk-sub* (cdr v) sub)))
+	 (t
+	  v))))
+
+(defun ext-sub (x v s)
+  (alist>> s x v))
+
+(defun loel-unify (v w s)
+  (let ((v (walk-sub v s))
+		(w (walk-sub w s)))
+	(cond
+	 ((eq v w) s)
+	 ((var? v) (ext-sub v w s))
+	 ((var? w) (ext-sub w v s))
+	 ((and 
+	   (listp v)
+	   (listp w))
+	  (let-if unified
+			  (loel-unify (car v) (car w) s)
+			  (loel-unify (cdr v) (cdr w) unified)
+			  nil))
+	 ((equal v w) s)
+	 (t nil))))
+
+(defun reify-name (n)
+  (internf "_%d" n))
+
+(defun reify-s (v &optional s)
+  (let ((v (walk-sub v s)))
+	(cond 
+	 ((var? v) (ext-sub v (reify-name (length s)) s))
+	 ((listp v)
+	  (cons (reify-s (car v))
+			(reify-s (cdr v))))
+	 (t
+	  s))))
+
+(defun reify (v s)
+  (walk-sub* v (reify-s v)))
+
+
+
+(defmacro* loel-run (n varlst &body body)
   (with-gensyms 
    (nhat varhat shat)
+   (db-print (list n varlst))
    `(lexical-let ((,nhat ,n)
-				  (,varhat (var ',(car varlst))))
+				  (,(car varlst) (var ,(car varlst))))
 	  (if (and 
 		   (not (nil? ,nhat))
-		   (> n 0))
+		   (> ,n 0))
 		  (map-inf ,nhat 
-				   (lex-lambda (,shat)
-							   (reify (walk* ,varhat ,shat)))
-				   (funcall (all ,@body) empty-s))
+				   (lambda (,shat)
+					 (reify (walk-sub* ,(car varlst) ,shat) ,shat))
+				   (funcall (loel-all ,@body) nil-sub))
 		nil))))
 
 (defmacro cond-aux (ifer &rest other-args)
@@ -129,6 +186,15 @@
 
 (defmacro loel-all (&rest gs)
   `(all-aux stream-bind ,@gs))
+
+;; (defmacro loel-all (&rest gs)
+;;   (with-gensyms (u)
+;; 				`(goal (,u)
+;; 					   (lexical-mlet< monad-stream
+;; 									  ,(loop for g in gs collect
+;; 											 `(,u (funcall ,g ,u)))
+;; 									  ,u))))
+
 
 (defmacro loel-all^i (&rest gs)
   `(all-aux stream-bind^i ,@gs))
@@ -185,3 +251,27 @@
 
 (defmacro cond^u (&rest cs)
   `(cond^u if^u ,@cs))
+
+(dont-do
+ (loel-run 1 (x) 
+		   (fresh (y)
+				  (=%= #'s y)
+				  y))
+
+ (loel-unify (var x) (var y) nil)		   
+
+ (funcall (loel-all 
+		   (=%= (var x) #'s)) nil)
+
+ (funcall (=%= (var v) (var u)) nil)
+
+ (cl-prettyexpand '(fresh (x) 
+						  (=%= x #'s)))
+
+
+
+
+
+
+
+)

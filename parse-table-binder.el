@@ -7,12 +7,14 @@
 (setq currently-defining-defn 'lambda)
 
 (defun key->count-key (it)
+  "Convert a token to the appropriate key to access its count in a table."
   (case it 
 	(:as :n-as) 
 	(:or :n-or)
 	(:keys :n-keys)))
 
 (defun check-keys-form (form)
+  "Check the :keys form in a TBL expressions."
   (and (vectorp form)
 	   (foldl 
 		(lambda (it ac)
@@ -23,6 +25,9 @@
 		(vector->list form))))
 
 (defun parse-tbl-special-forms (it ac)
+  "Ad-hoc parser function which handles special form parsing for
+TBL binders.  Takes a state in AC and the current token (IT) and
+returns the appropriate modified state."
   (let-tbl 
 	((i :i)
 	 (state :state)
@@ -71,6 +76,9 @@
 			   spec-key it))))))))
 
 (defun parse-tbl-binders (it ac)
+  "Parse the simple binders in a table binder.  Takes a table
+representing parser state and a token, returning the
+appropriately modified state."
   (let-tbl 
 	((i :i)
 	 (state :state)
@@ -102,6 +110,23 @@
 	 
 	 
 (defun parse-and-check-tbl-binder (binder)
+  "Parse and check a BINDER expression which represents table
+destructuring.  Works by conditionally folding over the tokens in
+BINDER.
+
+Return a list of the form 
+
+ (BINDERS KEYS AS-SYM OR-FORM KEYS-SEQ)
+
+ BINDERS the symbols to bind 
+ KEYS the keys to bind them to, same order as BINDERS
+ AS-SYM is the symbol to bind the entire table to, if provided.
+  Otherwise it is NIL.
+ OR-FORM is an expression which produces a table to destructuring when 
+  the input form fails to destructure properly.
+ KEYS-SEQ the :keys portion of the binding form.
+
+"
   (let-tbl
    ((binders :binders)
 	(keys    :keys)

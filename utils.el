@@ -1865,7 +1865,7 @@ which is the identity, by default."
 
 (defmacro db-print (form)
   "Print the form FORM and its VALUE."
-  `(print (format "%S - %s" ',form ,form)))
+  `(print (format "%S - %S" ',form ,form)))
 
 (defun second (s)
   "return the second element of SEQ."
@@ -2017,6 +2017,14 @@ result.  Only works if the difference would fit in 16 bits."
 (defun swons (lst el)
   "CONS with its arguments swapped."
   (cons el lst))
+
+(defun insert-recent-file-buttons-list (n)
+  (let ((files (sh "ls -t")))
+	(loop for file in (ix: files (range 0 (min n (length files)))) do
+		  (insert-button file 'action
+						 (lexical-let ((file file))
+						   (lambda (b) 
+							 (find-file file)))))))
 
   
 

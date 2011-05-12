@@ -6,7 +6,7 @@
 	 ((item #'anything))
 	 (if (funcall pred item) 
 		 (simple-parser-return item)
-	   nil))))
+	   #'nil-parser))))
 
 (defun -manythings (n)
   (lexical-let ((n n))
@@ -33,15 +33,16 @@
 (defun -or (&rest parsers)
   (lexical-let ((parsers parsers))
 	(lambda (input)
-	  (recur-let 
-	   ((rem-parsers parsers))
-	   (cond
-		((empty? rem-parsers) nil)
-		(t 
-		 (let ((r (funcall (car rem-parsers) input)))
-		   (if r r
-			 (recur (cdr rem-parsers))))))))))
-
+	  (unless (empty? input)
+		(recur-let 
+		 ((rem-parsers parsers))
+		 (cond
+		  ((empty? rem-parsers) nil)
+		  (t 
+		   (let ((r (funcall (car rem-parsers) input)))
+			 (if r r
+			   (recur (cdr rem-parsers)))))))))))
+  
 ;;; example:
 
 (defun -cat-or-dog ()
@@ -51,5 +52,5 @@
 
 (funcall (-cat-or-dog) "ewe")
 
-;;;Controls Home   <<< . >>>   1   2   3   4   5   6   7   8   9   10   11   12   13   
+;;;Controls Home   <<< . >>>   1   2   3   4   5   6   7   8   9   10   11   12   13   14   
 ;;;         Index

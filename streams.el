@@ -46,6 +46,7 @@
 			   (error "Tried to take the scar of a non-stream %S." stream))
 		   (stream-head stream)))))
 
+
 (defun scdr (stream)
   (cond ((not stream) nil)
 		(t
@@ -369,12 +370,12 @@
 
 
 (setq normal-numbers 
-	  (mlet**_ monad-stream ((u (random-numbers 1.0))
-							 (v (random-numbers 1.0 (make-random-state t))))
-			   (lexical-let ((r (sqrt (* -2 (log  u))))
-							 (s (* 2 pi v)))
-				 (stream (* r (cos s))
-						 (later (stream (* r (sin s)) nil))))))
+	  (lexical-mlet monad-stream ((u (random-numbers 1.0))
+								  (v (random-numbers 1.0 (make-random-state t))))
+					(lexical-let ((r (sqrt (* -2 (log  u))))
+								  (s (* 2 pi v)))
+					  (stream (* r (cos s))
+							  (later (stream (* r (sin s)) nil))))))
 
 (defun list->stream (list)
   (stream (car list)

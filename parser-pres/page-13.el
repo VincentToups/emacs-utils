@@ -27,7 +27,7 @@
 
 (funcall (-one-or-more
 		  (-matches "dog "))
-		 "cat dog dog dog cat")
+		 "dog dog dog dog cat")
 
 (funcall (-zero-or-more 
 		  (-matches "dog "))
@@ -55,9 +55,10 @@
 (defun -not (parser)
   (lexical-let ((parser parser))
 	(lambda (input)
-	  (let ((r (funcall parser input)))
-		(if r nil
-		  (pair t input))))))
+	  (unless (empty? input)
+		(let ((r (funcall parser input)))
+		  (if r nil
+			(pair t input)))))))
 
 (defun -and2 (p1 p2)
   (lexical-let ((p1 p1)

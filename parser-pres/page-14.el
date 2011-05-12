@@ -36,33 +36,97 @@
 (defun -colon ()
   (-matches ":"))
 
+(setq tab (format "\t"))
+(defun -whitespaces ()
+  (-one-or-more (-or (-matches " ")
+					 (-matches tab))))
+
 (defun -middle ()
   (parser-let* 
    ((colon (-not (-colon)))
-	(contents (-zero-or-more #'anything)))
+	(contents (-zero-or-more (-not-whitespace))))
    (simple-parser-return (list :middle (reduce #'concat contents)))))
 
+(defun -space-middle ()
+  (parser-let* 
+   ((_ (-whitespaces))
+	(middle (-middle)))
+   (simple-parser-return middle)))
 
 (setq tab (format "\t"))
 (defun -whitespaces ()
   (-one-or-more (-or (-matches " ")
 					 (-matches tab))))
 
-(defun -middle-and-params ()
-  (parser-let* ((middle (-middle))
-				(params (-params)))
-			   (list :continued (list middle params))))
-
 (defun -params ()
   (parser-let*
-   ((_ (-whitespaces))
-	(trailing? (-maybe (-colon-then-trailing)))
-	(rest (-maybe (-and-list 
+   ((params (-zero-or-more (-space-middle)))
+	(_ (-whitespaces))
+	(trailing (-maybe (-colon-then-trailing))))
+   (simple-parser-return
+	(cons (list :params 
+				(mapcar #'cadr params))
+		  (if trailing (list trailing)
+			nil)))))
 
-(funcall (-params) " a b c:a")
+(defun -not-whitespace ()
+  (-satisfies
+   (lambda (x)
+	 (and (not (string= x " "))
+		  (not (string= x tab))))))
+
+(defun -not-whitespaces ()
+  (-zero-or-more (-not-whitespace)))
+
+(lexical-let ((letters 
+			   "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+			  (numbers "1234567890")
+			  (punctuation 
+			   "~`!@#$%^&*()_+-={}[]|\\/<>,.:;'\"?"))
+  (defun -letter ()
+	(-satisfies
+	 (lambda (x) 
+	   (in (regexp-quote x) letters))))
+  (defun -number ()
+	(-satisfies 
+	 (lambda (x)
+	   (in (regexp-quote x) numbers))))
+  (defun -punctuation ()
+	(-satisfies 
+	 (lambda (x)
+	   (in (regexp-quote x) punctuation)))))
+
+(defun -command ()
+  (parser-let* 
+   ((command (-or 
+			  (-one-or-more (-letter))
+			  (-n-of 3 (-number)))))
+   (simple-parser-return
+	(list :command (reduce #'concat command)))))
+
+;;; We are going to cheat for the sake of brevity, and define prefix as:
+
+(defun -prefix ()
+  (parser-let* ((contents (-zero-or-more (-not-whitespace))))
+			   (simple-parser-return (list :prefix (reduce #'concat contents)))))
+
+;;; Putting it all together:
+
+(defun -irc-message ()
+  (parser-let* 
+   ((_ (-colon))
+	(prefix (-prefix))
+	(_ (-whitespaces))
+	(command (-command))
+	(params&tail (-params)))
+   (simple-parser-return
+	(append (list prefix command) params&tail))))
 
 
+(parsed-value (funcall (-irc-message) ":tod.com SEND a b c :rest"))
+
+;;; WEEEEE
 
 
-;;;Controls Home   <<< .    1   2   3   4   5   6   7   8   9   10   11   12   13   14   
+;;;Controls Home   <<< . >>>   1   2   3   4   5   6   7   8   9   10   11   12   13   14   15   
 ;;;         Index
