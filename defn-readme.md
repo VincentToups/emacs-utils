@@ -295,14 +295,15 @@ an error.
 #### Note on Recur and Lexical Scope ####
 
 This version of recursion will not handle lexically scoped variables
-correctly because it mutates the context for recursion without
-considering whether a lambda expression or other artifact is hanging
-onto a reference to some value.  Supporting the correct behavior would
-require a much more complex codewalker, and, in any case the need is
-somewhat obviated by the requirement that Emacs Lisp programmers
-explicitly indicate a desire for lexical scope using a `lexical-let`
-expression.  Each `lexical-let` then closes over its own version of
-the variables in scope.  So even though we are employing mutation:
+completely correctly.  This is because it mutates the context of a
+recursion without considering whether a `lambda` expression or other
+artifact is hanging onto a reference to some value in that context.
+Supporting the correct behavior would require a much more complex
+codewalker, and, in any case the need is somewhat obviated by the
+requirement that Emacs Lisp programmers explicitly indicate a desire
+for lexical scope using a `lexical-let` expression.  Each
+`lexical-let` then closes over its own version of the variables in
+scope.  So even though we are employing mutation under the hood:
 
     (setq closures (dloop [i 0
                               acc nil]
@@ -312,8 +313,9 @@ the variables in scope.  So even though we are employing mutation:
                                     (lexical-let ((x i))
                                       (lambda () x)) acc)))))
 
-Which collects a series of `lambda`'s with different values of `i`,
-the following code produces the correct values:
+
+, which collects a series of `lambda`'s enclosing different values of
+`i`, the following code produces the correct values:
 
     (funcall (elt closures 0)) -> 0
     (funcall (elt closures 4)) -> 4
@@ -321,7 +323,9 @@ the following code produces the correct values:
 etc.
 
 Emacs Lisp will support real lexical scope in the next release of
-emacs.  How that bodes for this project is unknown.
+emacs.  I'm pretty excited by this development, but I'm not sure how
+it will impact these libraries.  Probably they should be completely
+rewritten to exploit the new model of execution. 
 
 ### Example Usage ###
 
