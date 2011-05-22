@@ -14,6 +14,14 @@
 ;; hard about how monads work in general, but we will try to make
 ;; that clear in the course of the presentation.
 
+;; N.B. : As with my parser-monad library, the general shape of this
+;; talk owes a great deal to Drew Crampsie's SMUG Monadic Parser
+;; Combinator Library for Common Lisp.
+;; 
+;; I've simplified the parsers covered by this monad substantially for
+;; the purposes of clarity and brevity, however.  At the end of the
+;; talk we'll touch briefly on the nature of those simplifications. 
+
 (require 'el-pres)
 (rebuild-control-panel)
    
