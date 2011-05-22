@@ -24,6 +24,16 @@ an implementation of Kanren, the logic language described in "The
 Reasoned Schemer."  This archive includes just the projects described
 here, but all my code is available on <a href="https://github.com/VincentToups/emacs-utils" title="Github">github</a>.</p>
 
+<p>I've submitted this particular code because it represents several
+months of work, demonstrates an auto-didactic streak which I think is
+an important part of my personality, and also involves my interest in
+functional programming languages and programming language theory and
+design.  I also like this particular project because it demonstrates
+how plucky even an old Lisp can be - we can import very modern
+features into a lisp dialect which is quite old and crusty.  I'm not,
+however, a Lisp zealot - I'm quite interested in working with other
+functional languages.</p>
+
 <h3>Running the Code</h3>
 
 <p>This code requires GNU Emacs 23.1.1.  Extract the files located with
@@ -34,7 +44,9 @@ this readme to somewhere convenient.  Then start emacs with <code>emacs
 </code></pre>
 
 <p>You should then be able to <code>(require 'defn)</code> and execute the examples
-in this document and/or play with the library.  </p>
+in this document and/or play with the library.  Note that like most
+other macro-heavy Elisp projects (like the partial Common Lisp
+implementation) this library performs best when byte-compiled. </p>
 
 <h3>Destructuring Bind</h3>
 
@@ -309,14 +321,15 @@ an error.</p>
 <h4>Note on Recur and Lexical Scope</h4>
 
 <p>This version of recursion will not handle lexically scoped variables
-correctly because it mutates the context for recursion without
-considering whether a lambda expression or other artifact is hanging
-onto a reference to some value.  Supporting the correct behavior would
-require a much more complex codewalker, and, in any case the need is
-somewhat obviated by the requirement that Emacs Lisp programmers
-explicitly indicate a desire for lexical scope using a <code>lexical-let</code>
-expression.  Each <code>lexical-let</code> then closes over its own version of
-the variables in scope.  So even though we are employing mutation:</p>
+completely correctly.  This is because it mutates the context of a
+recursion without considering whether a <code>lambda</code> expression or other
+artifact is hanging onto a reference to some value in that context.
+Supporting the correct behavior would require a much more complex
+codewalker, and, in any case the need is somewhat obviated by the
+requirement that Emacs Lisp programmers explicitly indicate a desire
+for lexical scope using a <code>lexical-let</code> expression.  Each
+<code>lexical-let</code> then closes over its own version of the variables in
+scope.  So even though we are employing mutation under the hood:</p>
 
 <pre><code>(setq closures (dloop [i 0
                           acc nil]
@@ -327,8 +340,8 @@ the variables in scope.  So even though we are employing mutation:</p>
                                   (lambda () x)) acc)))))
 </code></pre>
 
-<p>Which collects a series of <code>lambda</code>'s with different values of <code>i</code>,
-the following code produces the correct values:</p>
+<p>, which collects a series of <code>lambda</code>'s enclosing different values of
+<code>i</code>, the following code produces the correct values:</p>
 
 <pre><code>(funcall (elt closures 0)) -&gt; 0
 (funcall (elt closures 4)) -&gt; 4
@@ -337,7 +350,9 @@ the following code produces the correct values:</p>
 <p>etc.</p>
 
 <p>Emacs Lisp will support real lexical scope in the next release of
-emacs.  How that bodes for this project is unknown.</p>
+emacs.  I'm pretty excited by this development, but I'm not sure how
+it will impact these libraries.  Probably they should be completely
+rewritten to exploit the new model of execution. </p>
 
 <h3>Example Usage</h3>
 

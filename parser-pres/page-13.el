@@ -18,6 +18,9 @@
 (funcall (-zero-or-more 
 		  (-matches "a"))
 		 "aaaab")
+(funcall (-zero-or-more 
+		  (-matches "a"))
+		 "bbbb")
 
 (defun -one-or-more (parser)
   (lexical-let ((parser parser))
@@ -29,7 +32,7 @@
 		  (-matches "dog "))
 		 "dog dog dog dog cat")
 
-(funcall (-zero-or-more 
+(funcall (-one-or-more 
 		  (-matches "dog "))
 		 "cat dog dog dog cat")
 
@@ -91,5 +94,5 @@
 
 (funcall (-n-of 3 (-matches "a")) "aaab")
 
-;;;Controls Home   <<< . >>>   1   2   3   4   5   6   7   8   9   10   11   12   13   14   
+;;;Controls Home   <<< . >>>   1   2   3   4   5   6   7   8   9   10   11   12   13   14   15   
 ;;;         Index

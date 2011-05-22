@@ -1,10 +1,11 @@
-(require 'with-stack)
+ (require 'with-stack)
 (require 'stack-words)
 (require 'eperiodic)
 (require 'defn)
 (require 'monads)
 (require 'functional)
 (require 'units)
+(require 'recur)
 
 (defun element-name (element)
   (||| 'name {element} 2>assoc 1>cdr))
@@ -108,11 +109,11 @@
 
 (defun generate-conditions (alist)
   (foldl (lambda (it ac)
-		   (domonad monad-seq 
+		   (domonad< monad-seq 
 					[a-case ac
 							component (cadr it)]
 					(cons (list (car it) component) a-case)))
-		 (domonad monad-seq 
+		 (domonad< monad-seq 
 				  [q (cadr (car alist))]
 				  (list (list (car (car alist)) q)))
 		 (cdr alist)))
@@ -134,7 +135,7 @@
   (flatten-once grouped-condition-list))
 
 (defun add-permutations (conditions-list condition-name values)
-  (domonad monad-seq [c conditions-list
+  (domonad< monad-seq [c conditions-list
 						v values]
 		   (alist>> c condition-name v)))
 
@@ -183,14 +184,14 @@
 (defun* undsf (alist &optional (order (alist-fields alist)) (delim "="))
   (join (foldl
 		 (lambda (pair flat)
-				(append flat (list (kw->string (car pair)) (to-string (cadr pair)))))
+		   (append flat (list (kw->string (car pair)) (to-string (cadr pair)))))
 		 nil
 		 alist) delim))
 
 (defun* undsf-camel (alist &optional (order (alist-fields alist)) (delim "="))
   (join (foldl
 		 (lambda (pair flat)
-				(append flat (list (camel-case (kw->string (car pair))) (to-string (cadr pair)))))
+		   (append flat (list (camel-case (kw->string (car pair))) (to-string (cadr pair)))))
 		 nil
 		 alist) delim))
 
@@ -238,10 +239,30 @@
 (defcurryl da-handler  #'concentration-handler
   "Dopamine")
 
-(defcurryr default-da-handler  #'da-handler  (from-milli 1)    (from-milli 50) :micro)
-(defcurryr default-hpo-handler #'hpo-handler (from-milli 1000) (from-milli 50) :micro)
+(defcurryl mcs-handler #'concentration-handler 
+  "MCS")
+
+
+(defvar concentrated-hpo-stock 9.791 "Concentration of concentrated HPO Stock.")
+
+(in-milli (dilution-volume (from-milli 50) 9.791 (from-milli 1000)))
+
+(comment 
+ (require 'chemistry)
+ (from-milli 9791.0))
+
+(defvar *final-volume-for-mixing* (from-milli 25))
+
+(defcurryr default-da-handler  #'da-handler  (from-milli 1)    *final-volume-for-mixing* :micro)
+(defcurryr default-hpo-handler #'hpo-handler (from-milli 1000) *final-volume-for-mixing* :micro)
+(defcurryr default-mcs-handler #'mcs-handler (from-milli 100)  *final-volume-for-mixing* :micro)
 
 (defdecorated default-hpo-handler-micro #'default-hpo-handler 
+  (lambda (arglist)
+	(cons (from-micro (car arglist))
+		  (cdr arglist))))
+
+(defdecorated default-mcs-handler-micro #'default-mcs-handler 
   (lambda (arglist)
 	(cons (from-micro (car arglist))
 		  (cdr arglist))))
@@ -251,14 +272,53 @@
 	(cons (from-nano (car arglist))
 		  (cdr arglist))))
 
+
+
 (defun default-ph (x)
   (format "pH of added buffer should be %f" (from-centi x)))
 
 (setq default-handler-alist 
 	  (alist>> 
+	   :sampleMcs #'default-mcs-handler-micro
 	   :samplePh #'default-ph
 	   :sampleDa #'default-da-handler-nano
 	   :sampleHpo #'default-hpo-handler-micro))
+
+(defun alist-keys->org-mode-table-segment (alist keys)
+  (join
+   (mapcar 
+	(decorate-n (pal #'format " %s ") 0 (pal #'alist alist))
+	keys)
+   "|"))
+
+(defun* generate-experiment-files (condition-args n-trials &optional (mixing-volume (from-milli 50)))
+  (print "WARNING Volumes other than 50 mil don't work correctly.")
+  (let* ((*final-volume-for-mixing* mixing-volume)
+		 (keys (mapcar #'car condition-args))
+		 (raw-conditions (generate-conditions condition-args))
+		 (conditions (||| {raw-conditions} 
+						  :samplePh 2>group-by-condition
+						  '( 1>permute-list ) map 1>ungroup))
+		 (trials (range n-trials)))
+	(let ((instructions (find-file "instructions.md"))
+		  (log          (find-file "log.org")))
+	  (with-current-buffer log
+		(kill-region (point-min) (point-max))
+		(insertf "| n | filename | trial | bufferPh | %s |\n" (alist-keys->org-mode-table-segment
+													(mapcar (lambda (x) (list x x))
+															keys) keys)))
+	  (with-current-buffer instructions
+		(kill-region (point-min) (point-max)))
+	  (loop for c in conditions and i from 1 do
+			(loop for trial in (add-permutations (list c) :trial trials) do
+				  (with-current-buffer log
+					(insertf "| | %s | %d  |7.40 | %s |\n"
+							 (condition->filename trial)
+							 (alist trial :trial)
+							 (alist-keys->org-mode-table-segment trial keys))))
+			(with-current-buffer instructions 
+			  (insertf "%d.\t %s\n" i
+					   (generate-instructions c default-handler-alist mixing-volume :milli)))))))
 
 (defun* generate-ph-hpo-da-experiment-files (condition-args n-trials &optional (mixing-volume (from-milli 50)))
   (print "WARNING Volumes other than 50 mil don't work correctly.")

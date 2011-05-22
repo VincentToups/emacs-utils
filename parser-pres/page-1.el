@@ -5,7 +5,7 @@
 ;; consider the question of what a monadic parser combinator is in
 ;; the following order:
 
-;;     1) What is our representation of a parse?
+;;     1) What is our representation of a parser?
 ;;     2) How do we combine them?
 ;;     3) How does this combination strategy form a monad?
 
@@ -17,5 +17,5 @@
 (require 'el-pres)
 (rebuild-control-panel)
    
-;;;Controls Home    . >>>   1   2   3   4   5   6   7   8   9   10   11   12   13   14   
+;;;Controls Home    . >>>   1   2   3   4   5   6   7   8   9   10   11   12   13   14   15   
 ;;;         Index

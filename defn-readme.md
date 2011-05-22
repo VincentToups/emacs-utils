@@ -25,6 +25,16 @@ an implementation of Kanren, the logic language described in "The
 Reasoned Schemer."  This archive includes just the projects described
 here, but all my code is available on [github][1].
 
+I've submitted this particular code because it represents several
+months of work, demonstrates an auto-didactic streak which I think is
+an important part of my personality, and also involves my interest in
+functional programming languages and programming language theory and
+design.  I also like this particular project because it demonstrates
+how plucky even an old Lisp can be - we can import very modern
+features into a lisp dialect which is quite old and crusty.  I'm not,
+however, a Lisp zealot - I'm quite interested in working with other
+functional languages.
+
 ### Running the Code ###
 
 This code requires GNU Emacs 23.1.1.  Extract the files located with
@@ -34,7 +44,9 @@ this readme to somewhere convenient.  Then start emacs with `emacs
     (add-to-list 'load-path <Location/of/files/>)
 
 You should then be able to `(require 'defn)` and execute the examples
-in this document and/or play with the library.  
+in this document and/or play with the library.  Note that like most
+other macro-heavy Elisp projects (like the partial Common Lisp
+implementation) this library performs best when byte-compiled. 
 
 ### Destructuring Bind ###
 

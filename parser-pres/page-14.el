@@ -28,13 +28,15 @@
 			   (simple-parser-return
 				(list :trailing (reduce #'concat trailing)))))
 
+(defun -colon ()
+  (-matches ":"))
+
 (defun -colon-then-trailing ()
   (parser-let* ((colon (-colon))
 				(trailing (-trailing)))
 			   (simple-parser-return trailing)))
 
-(defun -colon ()
-  (-matches ":"))
+
 
 (setq tab (format "\t"))
 (defun -whitespaces ()
@@ -43,7 +45,7 @@
 
 (defun -middle ()
   (parser-let* 
-   ((colon (-not (-colon)))
+   ((not-colon (-not (-colon)))
 	(contents (-zero-or-more (-not-whitespace))))
    (simple-parser-return (list :middle (reduce #'concat contents)))))
 
@@ -52,11 +54,6 @@
    ((_ (-whitespaces))
 	(middle (-middle)))
    (simple-parser-return middle)))
-
-(setq tab (format "\t"))
-(defun -whitespaces ()
-  (-one-or-more (-or (-matches " ")
-					 (-matches tab))))
 
 (defun -params ()
   (parser-let*
@@ -72,8 +69,8 @@
 (defun -not-whitespace ()
   (-satisfies
    (lambda (x)
-	 (and (not (string= x " "))
-		  (not (string= x tab))))))
+  (and (not (string= x " "))
+       (not (string= x tab))))))
 
 (defun -not-whitespaces ()
   (-zero-or-more (-not-whitespace)))

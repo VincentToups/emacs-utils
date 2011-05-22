@@ -27,13 +27,14 @@
 
 (find-file-other-frame "~/work/art/monadic-return.png")
 
-(funcall (parser-let* ((a-res #'parse-a)
-			 (b-res #'parse-b)
-			 (c-res #'parse-c))
-					 (simple-parser-return (list a-res b-res c-res)))
+(funcall (parser-let* 
+		  ((a-res #'parse-a)
+		   (b-res #'parse-b)
+		   (c-res #'parse-c))
+		  (simple-parser-return (list a-res b-res c-res)))
 		 "abcdef")
 
 ;;; ZING!
 
-;;;Controls Home   <<< . >>>   1   2   3   4   5   6   7   8   9   10   11   12   13   14   
+;;;Controls Home   <<< . >>>   1   2   3   4   5   6   7   8   9   10   11   12   13   14   15   
 ;;;         Index
