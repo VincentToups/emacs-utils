@@ -2,40 +2,45 @@
 
 ;;; consider that :
 
-(let* ((x 10)
-	   (y 11))
-  (+ x y))
+(mlet* seq-m
+	   ((x '(1 2 3))
+		(y '(4 5 6)))
+	   (+ x y))
 
-(let* ((x 10)
-	   (y (+ x 1)))
-  (+ x y))
+		  (let* ((x 10)
+				 (y 11))
+			(+ x y))
+
+		  (let* ((x 10)
+				 (y (+ x 1)))
+			(+ x y))
 
 ;;; expands to
-(comment
- (funcall
-  (lambda (x) 
-   (funcall (lambda (y) (+ x y)) 11)) 
-  10)
-)
+		  (comment
+		   (funcall
+			(lambda (x) 
+			  (funcall (lambda (y) (+ x y)) 11)) 
+			10)
+		   )
 
 ;;; or, provacatively:
-(comment 
-(defun id-bind (v f)
-  (funcall f v))
+		  (comment 
+		   (defun id-bind (v f)
+			 (funcall f v))
 
-(id-bind 
- 10 
- (lambda (x)
-   (id-bind 
-	11 
-	(lambda (y) 
-	  (+ x y))))))
+		   (id-bind 
+			10 
+			(lambda (x)
+			  (id-bind 
+			   11 
+			   (lambda (y) 
+				 (+ x y))))))
 
 ;;; or the semantic equivalent.
 ;;;
 ;;; parser-let*, then:
 
-(parser-let* 
+		  (parser-let* 
  ((a #'parse-a)
   (b #'parse-b))
  (simple-parser-return 

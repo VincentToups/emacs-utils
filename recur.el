@@ -38,7 +38,7 @@
  					   (comp (par #'simple-expand-recur nil nil nil) #'cadr) 
  					   bindings))
 		 (bindings (zip symbols expressions)))
-	`(let ,bindings ,@body)))
+	`(,(car form) ,bindings ,@body)))
 
 (defun simple-expand-recur-if (form symbols in-tail loop-sentinal)
   "Handle recursion expansion for IF forms."

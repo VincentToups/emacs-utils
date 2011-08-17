@@ -1,4 +1,4 @@
- (require 'with-stack)
+(require 'with-stack)
 (require 'stack-words)
 (require 'eperiodic)
 (require 'defn)
@@ -110,12 +110,12 @@
 (defun generate-conditions (alist)
   (foldl (lambda (it ac)
 		   (domonad< monad-seq 
-					[a-case ac
-							component (cadr it)]
-					(cons (list (car it) component) a-case)))
+					 [a-case ac
+							 component (cadr it)]
+					 (cons (list (car it) component) a-case)))
 		 (domonad< monad-seq 
-				  [q (cadr (car alist))]
-				  (list (list (car (car alist)) q)))
+				   [q (cadr (car alist))]
+				   (list (list (car (car alist)) q)))
 		 (cdr alist)))
 (defun generate-conditions>> (&rest rest)
   (generate-conditions (apply #'alist>> rest)))
@@ -136,8 +136,8 @@
 
 (defun add-permutations (conditions-list condition-name values)
   (domonad< monad-seq [c conditions-list
-						v values]
-		   (alist>> c condition-name v)))
+						 v values]
+			(alist>> c condition-name v)))
 
 (defun keyword->string (kw)
   (let ((s (format "%s" kw)))
@@ -146,9 +146,25 @@
 (defun condition->filename (condition)
   (||| lisp-val: (let ((keys (mapcar #'car condition)))
 				   (foldl (lambda (it ac)
-							(concatf (list ac "=%s=%0.6d")
-									 (keyword->string (car it))
-									 (cadr it)))
+							(if (cadr it)
+								(typecase (cadr it)
+								  (float 
+								   (concatf (list ac "=%s=%0.6f")
+											(keyword->string (car it))
+											(cadr it)))
+								  (number
+								   (concatf (list ac "=%s=%0.6d")
+											(keyword->string (car it))
+											(cadr it)))
+								  (symbol 
+								   (concatf (list ac "=%s=%s")
+											(keyword->string (car it))
+											(cadr it)))
+								  (string 
+								   (concatf (list ac "=%s=%s")
+											(keyword->string (car it))
+											(cadr it))))
+							  ac))
 						  ""
 						  condition))
 	   dup 1>length 1 swap 3>substring))
@@ -211,13 +227,13 @@
 
 
 (defun generate-instructions (condition handler-alist final-volume volume-units)
-  (format "for %s\n \t%s and fill to %f %sL"
+  (format "for %s\n \t\t%s and fill to %f %sL\n"
 		  (print-condition condition)
 		  (join (mapcar 
 				 (lambda (condition)
 				   (let* ((key (car condition))
 						  (handler (alist handler-alist key)))
-					 (funcall handler (cadr condition)))) condition) "\n\t")
+					 (funcall handler (cadr condition)))) condition) "\n\t\t")
 		  (funcall (alist-in *units-map* `(,volume-units :in)) final-volume)
 		  (||| {volume-units} "%s" swap 2>format dup length 1 swap substring)))
 
@@ -291,22 +307,23 @@
 	keys)
    "|"))
 
-(defun* generate-experiment-files (condition-args n-trials &optional (mixing-volume (from-milli 50)))
+(defun* generate-experiment-files (condition-args n-trials &optional (mixing-volume (from-milli 50))
+												  (filter-function (always t)))
   (print "WARNING Volumes other than 50 mil don't work correctly.")
   (let* ((*final-volume-for-mixing* mixing-volume)
 		 (keys (mapcar #'car condition-args))
-		 (raw-conditions (generate-conditions condition-args))
+		 (raw-conditions (filter filter-function (generate-conditions condition-args)))
 		 (conditions (||| {raw-conditions} 
 						  :samplePh 2>group-by-condition
-						  '( 1>permute-list ) map 1>ungroup))
+						  '( 1>permute-list ) map 1>permute-list 1>ungroup))
 		 (trials (range n-trials)))
 	(let ((instructions (find-file "instructions.md"))
 		  (log          (find-file "log.org")))
 	  (with-current-buffer log
 		(kill-region (point-min) (point-max))
 		(insertf "| n | filename | trial | bufferPh | %s |\n" (alist-keys->org-mode-table-segment
-													(mapcar (lambda (x) (list x x))
-															keys) keys)))
+															   (mapcar (lambda (x) (list x x))
+																	   keys) keys)))
 	  (with-current-buffer instructions
 		(kill-region (point-min) (point-max)))
 	  (loop for c in conditions and i from 1 do
@@ -324,9 +341,9 @@
   (print "WARNING Volumes other than 50 mil don't work correctly.")
   (let* ((raw-conditions (generate-conditions condition-args))
 		 (conditions (||| {raw-conditions} 
-						 :samplePh 2>group-by-condition
-						 '( 1>permute-list ) map 1>ungroup))
-		(trials (range n-trials)))
+						  :samplePh 2>group-by-condition
+						  '( 1>permute-list ) map 1>permute-list 1>ungroup))
+		 (trials (range n-trials)))
 	(let ((instructions (find-file "instructions.md"))
 		  (log          (find-file "log.org")))
 	  (with-current-buffer log

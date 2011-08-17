@@ -105,14 +105,44 @@
 					 (setq lst (cdr lst)))))
 		   found))))
 
-(defun* unique (lst &optional (pred #'eq))
-  "Returns a new list with only the unique elements in LST under PRED."
-  (reverse (foldl
-			(lambda (it ac)
-			  (if (in it ac pred) ac
-				(cons it ac)))
-			'()
-			lst)))
+(defun in-list-by-pred-return (lst pred)
+  "Returns the first item for which PRED is true, else nil."
+  (car (member-if pred lst)))
+
+(defun* replace-when-equal (lst pred trans)
+  (loop for item in lst collect
+		(if (funcall pred item)
+			(funcall trans item)
+		  item)))
+
+
+(defun* unique (lst &optional (pred #'eq) 
+					(combine (lambda (item acc)
+							   acc)))
+  "Returns a new list with only the unique elements in LST under
+PRED.  When an element is found more than once in the list, it be
+combined with the recorded element in a non-standard way using COMBINE."
+  (lexical-let ((pred pred)
+				(combine combine))
+	(reverse (foldl 
+	 (lambda (it seen)
+	   (lexical-let ((it it)
+					 (seen seen)
+					 (pred-prime (lambda (o)
+								   (funcall pred it o))))
+		 (let ((r (in-list-by-pred-return 
+				   seen 
+				   pred-prime)))
+		   (if r
+			   (replace-when-equal 
+				seen 
+				pred-prime
+				(lambda (o)
+				  (funcall combine it o)))
+			 (cons it seen)))))
+	 nil
+	 lst))))
+								   
 
 (defun insertf (&rest args)
   "Insert with string format string semantics on input."
@@ -2026,6 +2056,45 @@ result.  Only works if the difference would fit in 16 bits."
 						   (lambda (b) 
 							 (find-file file)))))))
 
-  
+(defun remove-linebreaks-but-preserve-double-lines (s e)
+  (interactive "r")
+  (let ((sigil (md5 (buffer-substring s e))))
+	(narrow-to-region s e)
+	(replace-string (format "\n\n") sigil t s e)
+	(let ((s (point-min))
+		  (e (point-max)))
+	  (replace-string (format "\n") " " t s e)
+	  (replace-string sigil (format "\n\n") t s e))
+	(widen)))
+
+(defun region->markdown->clipboard (s e)
+  (interactive "r")
+  (let ((buf (current-buffer)))
+	(with-temp-buffer 
+	  (let ((tmp-buffer (current-buffer)))
+		(with-current-buffer buf
+		  (shell-command-on-region s e "markdown" tmp-buffer))
+		(kill-region (point-min) (point-max))))))
+
+(defun buffer->markdown->clipboard ()
+  (interactive)
+  (save-excursion 
+	(region->markdown->clipboard (point-min) (point-max))))
+	
+(defun xor2 (a b)
+  "Exclusive or helper."
+  (if a (not b) b))
+
+(defun xor (&rest args)
+  "Exclusive or."
+  (reduce #'xor2 args))
+
+(defun stringi= (s1 s2)
+  "String equality test, case insensitive."
+  (string= (upcase s1) (upcase s2)))
+
+(defmacro enclose (vars &rest body)
+  "Create a lexical closure over the vars VARS and execute body within it."
+  `(lexical-let ,(mapcar (lambda (var) (list var var)) vars) ,@body))
 
 (provide 'utils)

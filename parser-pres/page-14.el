@@ -122,6 +122,12 @@
 
 (parsed-value (funcall (-irc-message) ":tod.com SEND a b c :rest"))
 
+((:prefix "tod.com") 
+ (:command "SEND") 
+ (:params ("a" "b" "c")) 
+ (:trailing "rest"))
+
+
 ;;; WEEEEE
 
 

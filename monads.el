@@ -413,7 +413,7 @@ This is the most heavy duty form.
 	   current-monad 
 	   (lexical-domonad-inner< ,binders ,@body)))))
 
-(defmacro* lexical-mlet-inner (binders &rest body)
+(defmacro* lexical-mlet-inner (binders &body body)
 
   (cond 
    ((empty? binders) `(progn ,@body))
@@ -425,7 +425,7 @@ This is the most heavy duty form.
 			   (lex-lambda (,symbol)
 						   (lexical-mlet-inner ,(cdr binders) ,@body)))))))
 
-(defmacro* lexical-mlet (monad binders &rest body)
+(defmacro* lexical-mlet (monad binders &body body)
 "LEXICAL-MLET - Chain the operations in BINDERS, regular 
 lisp style let binding expressions, through the monad MONAD,
 finally returning the result of BODY.  Lexically bound copies

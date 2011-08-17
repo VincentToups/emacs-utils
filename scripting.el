@@ -56,6 +56,10 @@
 					(let ((f (cadr (cadr alist-part))))
 					  (funcall f part)))
 				  parts format-alist))))
+
+(defun file-size (file)
+  (alist (file-info file '(("%s" (:size string-to-number)))) :size))
+
 (defun file-loc (filename)
   (||| lisp-val: (split-string filename "/") reverse cdr reverse "/" 2>join))
 

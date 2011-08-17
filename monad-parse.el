@@ -42,6 +42,8 @@
    (ix   :accessor index-of  :initarg :index :initform 0)))
 
 
+
+
 (defmethod input-empty? ((input <parser-input-string>))
   (= (length (string-of input)) (index-of input)))
 (defmethod input-empty-p ((input <parser-input-string>))
@@ -138,6 +140,15 @@
 	  (list (cons (input-first input)
 				  (input-rest input))))))
 
+(defun remaining (input)
+  (list (cons (input-as-string input) input)))
+
+(defun =or-strings (&rest args)
+  (apply #'=or (mapcar #'=string args)))
+
+(defun =or-stringsi (&rest args)
+  (apply #'=or (mapcar #'=stringi args)))
+
 (lex-defun parser-items (n)
   (lambda (input)
 	(let ((i 0)
@@ -148,7 +159,7 @@
 			(setq i (+ i 1))
 			(push (input-first input) ac )
 			(setq input (input-rest input)))
-	  (if (= (length ac) n) (list (cons (reverse ac) input) nil)))))
+	  (if (= (length ac) n) (list (cons (reverse ac) input)) nil))))
 
 (lex-defun parser-items->string (n)
   (lambda (input)
@@ -161,7 +172,7 @@
 			(push (input-first input) ac )
 			(setq input (input-rest input)))
 										;(db-print (list n (length ac) (coerce (reverse ac) 'string)))
-	  (if (= (length ac) n) (list (cons (coerce (reverse ac) 'string) input) nil)))))
+	  (if (= (length ac) n) (list (cons (coerce (reverse ac) 'string) input)) nil))))
 
 (defun =string (str)
   (lexical-let ((str str))
@@ -170,6 +181,17 @@
 				   (if (string= x str)
 					   (parser-return x)
 					 (parser-fail))))))
+
+
+(defun =stringi (str)
+  (lexical-let ((str str))
+	(parser-bind (parser-items->string (length str))
+				 (lambda (x)
+				   (if (stringi= x str)
+					   (parser-return str)
+					 (parser-fail))))))
+
+
 (defun =string->seq (str)
   (lexical-let ((str str))
 	(parser-bind (parser-items->string (length str))
@@ -265,6 +287,13 @@
 	(rest (=one-or-more (=digit-char))))
    (coerce (cons dot rest) 'string)))
 
+(lex-defun =decimal-part* (dec-string)
+  (=simple-let*
+   ((dot (=string dec-string))
+	(rest (=one-or-more (=digit-char))))
+   (coerce (cons ?. rest) 'string)))
+
+
 (defun =integer-part ()
   (=simple-let* 
    ((digits (=zero-or-more (=digit-char))))
@@ -272,9 +301,20 @@
 
 (defun =number->number ()
   (=simple-let* 
-   ((int (=integer-part))
+   ((minus-sign (=maybe (=string "-")))
+	(int (=integer-part))
 	(dec (=maybe (=decimal-part))))
-   (string-to-number (concat int dec))))
+   (let ((n (string-to-number (concat int dec))))
+	 (if minus-sign (- n) n))))
+
+(lex-defun =number->number* (dec-string)
+  (=simple-let* 
+   ((minus-sign (=maybe (=string "-")))
+	(int (=integer-part))
+	(dec (=maybe (=decimal-part* dec-string))))
+   (let ((n (string-to-number (concat int dec))))
+	 (if minus-sign (- n) n))))
+
 
 (lex-defun =or2 (p1 p2)
   (lambda (input)
@@ -299,7 +339,6 @@
 ;; 			  parsers)))
 
 (lex-defun =not (parser)
-  b
   (lambda (input)
 	(let ((result (funcall parser input)))
 	  (if result
@@ -362,6 +401,11 @@
 ;; 				(parser-return nil)))
 
 (lex-defun =zero-or-one (parser)
+  (=or (=let* [_ parser]
+			  _)
+	   (parser-return nil)))
+
+(lex-defun zero-or-one (parser)
   (=or (=let* [_ parser]
 			  _)
 	   (parser-return nil)))
@@ -476,6 +520,9 @@
   (=satisfies (f-and 
 			   #'symbolp 
 			   (par #'eq sym))))
+
+(defmacro* parser-let* (binders &body body)
+  `(lexical-mlet monad-parse ,binders ,@body))
 
 (provide 'monad-parse)
 
