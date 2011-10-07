@@ -134,6 +134,8 @@
 (defun parser-fail ()
   (lambda (input) nil))
 
+(setq parser-fail (parser-fail))
+
 (defun parser-item ()
   (lambda (input)
 	(unless (input-empty? input)
@@ -565,7 +567,7 @@
 			  (setq ,name (parser ,@(if (stringp maybe-doc) '() (list maybe-doc)) ,@exprs)))
 	`(lex-defun ,(car name) ,(cdr name) 
 	   ,@(if (stringp maybe-doc) (list maybe-doc) '())
-	   (setq ,name (parser ,@(if (stringp maybe-doc) '() (list maybe-doc)) ,@exprs)))))
+	   (parser ,@(if (stringp maybe-doc) '() (list maybe-doc)) ,@exprs))))
 
 (defun =one-or-more->string (parser)
   (lexical-let ((parser parser))
