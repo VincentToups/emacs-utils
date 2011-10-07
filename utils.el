@@ -6,6 +6,9 @@
 (defvar lb "
 " "A linebreak.")
 
+(defvar else t)
+(defvar otherwise t)
+
 (setq true t)
 
 (defun list->vector (lst)
@@ -125,24 +128,24 @@ combined with the recorded element in a non-standard way using COMBINE."
   (lexical-let ((pred pred)
 				(combine combine))
 	(reverse (foldl 
-	 (lambda (it seen)
-	   (lexical-let ((it it)
-					 (seen seen)
-					 (pred-prime (lambda (o)
-								   (funcall pred it o))))
-		 (let ((r (in-list-by-pred-return 
-				   seen 
-				   pred-prime)))
-		   (if r
-			   (replace-when-equal 
-				seen 
-				pred-prime
-				(lambda (o)
-				  (funcall combine it o)))
-			 (cons it seen)))))
-	 nil
-	 lst))))
-								   
+			  (lambda (it seen)
+				(lexical-let ((it it)
+							  (seen seen)
+							  (pred-prime (lambda (o)
+											(funcall pred it o))))
+				  (let ((r (in-list-by-pred-return 
+							seen 
+							pred-prime)))
+					(if r
+						(replace-when-equal 
+						 seen 
+						 pred-prime
+						 (lambda (o)
+						   (funcall combine it o)))
+					  (cons it seen)))))
+			  nil
+			  lst))))
+
 
 (defun insertf (&rest args)
   "Insert with string format string semantics on input."
@@ -912,7 +915,7 @@ combined with the recorded element in a non-standard way using COMBINE."
   "Access element EL in an alist ALIST."
   (cadr (assoc el alist)))
 
-(defun alist! (alist el value)
+q(defun alist! (alist el value)
   "Destructively updates EL to VALUE in ALIST."
   (let ((element-holder (assoc el alist)))
 	(if element-holder (setf (cadr element-holder) value)
@@ -2080,7 +2083,7 @@ result.  Only works if the difference would fit in 16 bits."
   (interactive)
   (save-excursion 
 	(region->markdown->clipboard (point-min) (point-max))))
-	
+
 (defun xor2 (a b)
   "Exclusive or helper."
   (if a (not b) b))
@@ -2096,5 +2099,55 @@ result.  Only works if the difference would fit in 16 bits."
 (defmacro enclose (vars &rest body)
   "Create a lexical closure over the vars VARS and execute body within it."
   `(lexical-let ,(mapcar (lambda (var) (list var var)) vars) ,@body))
+
+(defun split-after-n (lst n)
+  (let ((recur-loop-sentinal-86013 t)
+		(recur-loop-return-value-86014 nil))
+	(let ((tail lst)
+		  (n n)
+		  (torso nil))
+	  (while recur-loop-sentinal-86013
+		(setq recur-loop-sentinal-86013 nil)
+		(setq recur-loop-return-value-86014 
+			  (progn
+				(cond ((or (= 0 n)
+						   (empty\? tail))
+					   (list (reverse torso)
+							 tail))
+					  (otherwise (progn
+								   (setq recur-loop-sentinal-86013 
+										 (prog1
+											 t
+										   (setq tail (prog1
+														  (cdr tail)
+														(setq n (prog1
+																	(- n
+																	   1)
+																  (setq torso (cons (car tail)
+																					torso))))))))
+								   nil)))))))
+	recur-loop-return-value-86014))
+
+(defun reverse-alist-keys (alst)
+  "Reverse the lists in the keys of an association list."
+  (mapcar
+   (lambda (pr)
+	 (list (car pr) (reverse (cadr pr))))
+   alst))
+
+(defun mapcar/deal (fun lst)
+  "Map FUN over LST.  FUN returns a list of two items, the first
+of which is a key the second of which is a value.  The VALUES are
+accumulated at the KEYS in an ALIST which is returned."
+  (recur-let ((a '())
+			  (lst lst))
+			 (if (empty? lst) 
+				 (reverse-alist-keys a)
+			   (let* ((result (funcall fun (car lst)))
+					  (key (car result))
+					  (val (cadr result)))
+				 (recur (alist-cons a key val)
+						(cdr lst))))))
+
 
 (provide 'utils)

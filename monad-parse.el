@@ -174,7 +174,7 @@
 										;(db-print (list n (length ac) (coerce (reverse ac) 'string)))
 	  (if (= (length ac) n) (list (cons (coerce (reverse ac) 'string) input)) nil))))
 
-(defun =string (str)
+(defun =string_ (str)
   (lexical-let ((str str))
 	(parser-bind (parser-items->string (length str))
 				 (lambda (x)
@@ -182,14 +182,32 @@
 					   (parser-return x)
 					 (parser-fail))))))
 
+(defun =string (&rest strs)
+  (lexical-let ((strs strs))
+	(if (not (cdr strs))
+		(=string_ (car strs))
+	  (=or (=string_ (car strs))
+		   (apply #'=string (cdr strs))))))
 
-(defun =stringi (str)
+										; (byte-compile #'=string)
+
+
+(defun =stringi_ (str)
   (lexical-let ((str str))
 	(parser-bind (parser-items->string (length str))
 				 (lambda (x)
 				   (if (stringi= x str)
 					   (parser-return str)
 					 (parser-fail))))))
+
+(defun =stringi (&rest strs)
+  (lexical-let ((strs strs))
+	(if (not (cdr strs))
+		(=stringi_ (car strs))
+	  (=or (=stringi_ (car strs))
+		   (apply #'=stringi (cdr strs))))))
+
+
 
 
 (defun =string->seq (str)
@@ -307,6 +325,15 @@
    (let ((n (string-to-number (concat int dec))))
 	 (if minus-sign (- n) n))))
 
+(defun =number->string ()
+  (=simple-let* 
+   ((minus-sign (=maybe (=string "-")))
+	(int (=integer-part))
+	(dec (=maybe (=decimal-part))))
+   (let ((n (concat int dec)))
+	 (if minus-sign (concat "-" n) n))))
+
+
 (lex-defun =number->number* (dec-string)
   (=simple-let* 
    ((minus-sign (=maybe (=string "-")))
@@ -343,7 +370,7 @@
 	(let ((result (funcall parser input)))
 	  (if result
 		  nil
-		(list (cons t input))))))
+		(funcall (parser-item) input)))))
 
 (defmacro* =let* (forms &body body)
   `(lexical-domonad< monad-parse ,forms ,@body))
@@ -523,6 +550,29 @@
 
 (defmacro* parser-let* (binders &body body)
   `(lexical-mlet monad-parse ,binders ,@body))
+
+(defmacro parser-do (&rest exprs)
+  `(monadic-do monad-parse ,@exprs))
+
+(defmacro parser (&rest exprs)
+  `(parser-do ,@exprs))
+
+(defmacro defparser (name maybe-doc &rest exprs)
+  (if (symbolp name)
+	  `(progn (defvar ,name 
+				nil
+				,@(if (stringp maybe-doc) (list maybe-doc) '()))
+			  (setq ,name (parser ,@(if (stringp maybe-doc) '() (list maybe-doc)) ,@exprs)))
+	`(lex-defun ,(car name) ,(cdr name) 
+	   ,@(if (stringp maybe-doc) (list maybe-doc) '())
+	   (setq ,name (parser ,@(if (stringp maybe-doc) '() (list maybe-doc)) ,@exprs)))))
+
+(defun =one-or-more->string (parser)
+  (lexical-let ((parser parser))
+	(parser-do
+	 (r <- (=one-or-more parser))
+	 (m-return
+	  (coerce r 'string)))))
 
 (provide 'monad-parse)
 

@@ -1,4 +1,4 @@
- (require 'cl)
+(require 'cl)
 (require 'utils)
 (require 'defn)
 (require 'recur)
@@ -426,14 +426,14 @@ This is the most heavy duty form.
 						   (lexical-mlet-inner ,(cdr binders) ,@body)))))))
 
 (defmacro* lexical-mlet (monad binders &body body)
-"LEXICAL-MLET - Chain the operations in BINDERS, regular 
+  "LEXICAL-MLET - Chain the operations in BINDERS, regular 
 lisp style let binding expressions, through the monad MONAD,
 finally returning the result of BODY.  Lexically bound copies
 of the monad and monad functions are provided in the expression
 forms of this macro."
   `(let-monad ,monad
 			  (lexical-let-monad current-monad 
-								   (lexical-mlet-inner ,binders ,@body))))
+								 (lexical-mlet-inner ,binders ,@body))))
 
 (defmacro* lexical-mlet-inner< (binders &rest body)
   (cond 
@@ -447,7 +447,7 @@ forms of this macro."
 						   (lexical-mlet-inner< ,(cdr binders) ,@body)))))))
 
 (defmacro* lexical-mlet< (monad binders &rest body)
-"LEXICAL-MLET - Chain the operations in BINDERS, regular 
+  "LEXICAL-MLET - Chain the operations in BINDERS, regular 
 lisp style let binding expressions, through the monad MONAD,
 finally returning the result of BODY, wrapped in a final call 
 to M-RETURN.  
@@ -475,7 +475,7 @@ forms of this macro."
 						   (mlet-inner ,(cdr binders) ,@body)))))))
 
 (defmacro* mlet (monad binders &rest body)
-"MLET - Monadic let.  Sequence the bindings represented in BINDINGS, 
+  "MLET - Monadic let.  Sequence the bindings represented in BINDINGS, 
 which resemble regular lisp let-like binding forms, through the monad
 MONAD.  Finally execute and return body.
 
@@ -544,6 +544,53 @@ the rules of the current monad."
 monadically, according to the current monad."
   (m-seq (mapcar f xs)))
 
+(defun single-element-list? (l)
+  "Quickly checks whether L has only one element."
+  (not (cdr l)))
+
+(defun monadic-do-binder? (l)
+  "Checks a list to see if it looks like (VAR <- VAL)"
+  (and (listp l)
+	   (eq '<- (second l))
+	   (symbolp (car l))))
+
+(defmacro monadic-do-helper (&rest bodies)
+  "Help expand alternative monad syntax."
+  (cond 
+   ((single-element-list? bodies)
+	(let ((b (car bodies)))
+	  (if (monadic-do-binder? b)
+		  `(funcall
+			(gethash :m-bind current-monad) 
+			,(third b)
+			(lex-lambda (,(first b))
+						,(first b)))
+		b)))
+   (t 
+	(let ((b (car bodies))
+		  (rest (cdr bodies)))
+	  (if (monadic-do-binder? b)
+		  `(funcall
+			(gethash :m-bind current-monad)
+			,(third b)
+			(lex-lambda 
+			 (,(first b))
+			 (monadic-do-helper ,@rest)))
+		(with-gensyms (id)
+					  `(funcall 
+						(gethash :m-bind current-monad)
+						,b
+						(lambda (,id)
+						  (monadic-do-helper ,@rest)))))))))
+
+
+(defmacro monadic-do (monad &rest bodies)
+  "Alternative monadic binding syntax.  Each BODY must be a
+binding form, (symbol <- expr), which monadically binds
+symbol monadically, or an expression which results in an
+monadic value."
+  `(with-monad ,monad
+			   (monadic-do-helper ,@bodies)))
 
 
 (example
@@ -563,8 +610,8 @@ monadically, according to the current monad."
   "Macro - LIFT F (with N args) into the current monad."
   (let ((arg-names (mapcar (pal #'gensymf "lift-arg%d-") (range n))))
 	(with-gensyms 
- 	 (f-to-lift)
- 	 `(lexical-let ((,f-to-lift ,f))
+	 (f-to-lift)
+	 `(lexical-let ((,f-to-lift ,f))
 		(lambda ,arg-names
 		  (mlet< current-monad
 				 ,(loop for nm in arg-names collect
