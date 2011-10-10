@@ -422,7 +422,7 @@
 		  default-method))
 
 (dont-do
-										;example
+ (require 'multi-methods)										;example
  (defmulti report :student-name)
  (defunmethod report :ricky-gervais (student) "I got an A+")
  (defunmethod report :karl-pilkington (student) "Maybe I forgot to sign up for exams.")
