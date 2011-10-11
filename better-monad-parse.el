@@ -3,7 +3,7 @@
 (require 'cl)
 (require 'defn)
 (require 'functional)
-(require 'multimethods)
+(require 'multi-methods)
 
 ;;; Uniform Input Represention:
 
@@ -203,6 +203,17 @@ return the results concatenated into a string."
 	(item <- parser)
 	(m-return (list item)))))
 
+(defun =>maybe (parser)
+  "Produces a parser that always succeeds.  If parser succeeds,
+the monadic return value comes from PARSER.  Otherwise,
+monadically returns NIL."
+  (enclose 
+   (parser)
+   (lambda (input)
+	 (let ((rs (funcall parser input)))
+	   (if rs rs
+		 (list (cons nil input)))))))
+
 ;;; The dreaded zero plus more combinator.
 
 (defun zero-plus-more-step (substate parser)
@@ -235,13 +246,20 @@ returns the results in a list."
 	 ((terminals nil)
 	  (continuers (funcall (=>list p) input)))
 	 (if (empty? continuers)
-		 terminals 
+		 (if (empty? terminals) 
+			 (list (cons nil input))
+		   terminals) 
 	   (let* ((split-tbl
 			   (mapcar/deal (par #'zero-plus-more-step p) continuers))
 			  (new-continuers (alist split-tbl :continue))
 			  (new-terminals (alist split-tbl :terminate)))
 		 (recur (append terminals new-terminals)
 				(reduce #'append new-continuers))))))))
+
+(defun =>zero-plus-more->string (p)
+  "Like =>ZERO-PLUS-MORE, but the monadic return is concatenated
+into a string."
+  (=>reduce-concat (=>zero-plus-more p)))
 
 (defun =>zero-or-more (p)
   "Alias for =>ZERO-PLUS-MORE."
@@ -263,23 +281,224 @@ returns the results in a list."
 (defun =>or2 (p1 p2)
   "Produce a PARSER which succeeds on P1 or P2.  Returns the
 successful parser's value."
-  (monadic-do 
-   monad-parse
-   (r <- p1)
-   (if (not r) 
-	   p2
-	 (m-return r))))
-
+  (enclose 
+   (p1 p2)
+   (lambda (input)
+	 (let ((rs (funcall p1 input)))
+	   (if rs rs
+		 (funcall p2 input))))))
 (defun =>or (&rest ps)
   "Produce a parser which succeeds if one of PS is true."
-  (reduce #'=>or ps))
+  (reduce #'=>or2 ps))
 
 (defun =>and2 (p1 p2)
   "Produce a parser which succeeds if P1 and P2 both succeed."
   (monadic-do 
    monad-parse
-			   
+   p1
+   p2))
 
+(defun =>and (&rest ps)
+  "Produces a parser if all PS succeed.  Result is last parser's result."
+  (reduce #'=>and2 ps))
 
+(defun =>not (p)
+  "Succeeds only if P fails.  Returns one item."
+  (enclose 
+   (p)
+   (lambda (input)
+	 (let ((rs (funcall p input)))
+	   (if rs =nil
+		 =item)))))
 
+(defun =>reduce-concat (p)
+  "Return a new parser that reduces the result of P with concat."
+  (monadic-do
+   monad-parse
+   (r <- p)
+   (m-return (reduce #'concat r))))
+
+;;; We need to start writing 
+
+(defmacro defvar/fun (name lambda &optional doc)
+  `(progn 
+	 (defvar ,name nil ,@(if doc (list doc) (list)))
+	 (setq ,name ,lambda)
+	 (defalias ',name ,name)))
+
+(defun to-char (s)
+  "Convert s to the character code representing its first
+character."
+  (car (coerce s 'list)))
+
+(lexical-let*
+	((low-chars "abcdefghijklmnopqrstuvwxyz")
+	 (low-chars-list (coerce low-chars 'list))
+	 (high-chars-list (coerce (upcase low-chars) 'list))
+	 (both-list (append low-chars-list high-chars-list)))
+  (defvar/fun =alpha
+	(=>satisfies 
+	 (lambda (x) (in (to-char x) both-list)))
+	"Parse an alphabetical character.")
+  (defvar/fun =alpha-upper 
+	(=>satisfies
+	 (lambda (x) (in (to-char x) high-chars-list))) 
+	"Parse an uppercast alphabetical character.")
+  (defvar/fun =alpha-lower
+	(=>satisfies 
+	 (lambda (x) (in (to-char x) low-chars-list)))
+	"Parse a lowercase alphabetical character"))
+
+(lexical-let 
+	((digits (coerce "1234567890" 'list)))
+  (defvar/fun =digit 
+	(=>satisfies 
+	 (lambda (x) (in (to-char x) digits)))))
+
+(defun/var =input-type (input)
+  "Monadically return the type of the input being parsed."
+  (list (cons (input-dispatcher input) input)))
+
+(defun =>string (s)
+  "Produces a parser which, if the input is a string or buffer,
+matches N characters matching the string S.  If the input is a list, then it
+succeeds only when the item is a string which matches S."
+  (lexical-let ((s s)
+				(n (length s)))
+	(monadic-do
+	 monad-parse
+	 (type <- =input-type)
+	 (if (eq :list type)
+		 (monadic-do
+		  monad-parse
+		  (item <- =item)
+		  (if (and (stringp item) (string= item s))
+			  (m-return item)
+			=nil))
+	   (monadic-do 
+		monad-parse
+		(items <- (=>items->string n))
+		(if (string= items s) (m-return items)
+		  =nil))))))
+
+(defvar/fun =number-from-list 
+  (monadic-do 
+   monad-parse
+   (item <- =item)
+   (if (numberp item) (m-return item) =nil))
+  "Parse a number from a list.  This parser will always fail on
+character based inputs.")
+
+(defvar/fun =sign 
+  (=>or (=>string "+") (=>string "-")))
+
+(defvar/fun =string-of-digits 
+  (=>zero-plus-more =digit))
+
+(defvar/fun =string-of-digits->string 
+  (monadic-do
+   monad-parse
+   (items <- =string-of-digits)
+   (m-return 
+	(if (empty? items) "" (reduce #'concat items)))))
+
+(defvar/fun =dot (=>string "."))
+
+(defvar/fun =number-char
+  (monadic-do
+   monad-parse
+   (sign <- (=>maybe =sign))
+   (pre  <- =string-of-digits->string)
+   (dot <- (=>maybe =dot))
+   (rest <- =string-of-digits->string)
+   (m-return
+	(string-to-number
+	 (let ((sign (if sign sign "")))
+	   (if dot (concat sign pre dot rest)
+		 (concat sign pre)))))))
+
+(defvar/fun =number
+  (monadic-do 
+   monad-parse
+   (input-type <- =input-type)
+   (if (eq input-type :list)
+	   =number-from-list
+	 =number-char)))
+
+(defmacro parser (&rest body)
+  "Create a parser by using the parser monad to sequence the
+monadic values represented by the forms in BODY.  Each form must
+either be a monadic value or a binding form of the type (SYMBOL
+<- EXPR), where the expression is a monadic value.  SYMBOL is
+bound to the monadic return value thereof in subsequent
+expressions."
+  `(monadic-do monad-parse
+			   ,@body))
+
+(defmacro defparser-fun (name args maybe-doc &rest body)
+  "Create a parser-producing function by evaluating the BODY
+expressions as in a MONADIC-DO in the body of a function named
+NAME with lexically bound arguments ARGS.  If MAYBE-DOC is a string,
+it is counted as the doc-string for the function."
+  `(lex-defun ,name ,args
+	 ,@(if (stringp maybe-doc) (list maybe-doc) nil)
+	 (parser
+	  ,@(if (not (stringp maybe-doc)) (list maybe-doc) nil)
+	  ,@body)))
+
+(defmacro defparser-val (name maybe-doc &rest body)
+  "Creates a parser value/function binding by evaluating the BODY
+as if in a monadic-do form in the parser monad.  If MAYBE-DOC is
+a string, this is treated as the doc-string."
+  `(defvar/fun ,name
+	 (parser ,@(if (not (stringp maybe-doc)) (list maybe-doc) nil)
+			 ,@body)
+	 ,@(if (stringp maybe-doc) (list maybe-doc) nil)))
+
+(defmacro defparser (name/args maybe-doc &rest body)
+  "Combines DEFPARSER-VAL and DEFPARSER-FUN in one easy to use,
+Scheme-like defining form.  If NAME/ARGS is a symbol, this
+expression defines a parser as in DEFPARSER-VAL.  If it is a list,
+then the car of the list is taken to be the function name and the
+CDR the arguments in a DEFPARSER-FUN expression."
+  (if (symbolp name/args) `(defparser-val ,name/args ,maybe-doc ,@body)
+	(let ((name (car name/args))
+		  (args (cdr name/args)))
+	  `(defparser-fun ,name ,args ,maybe-doc ,@body))))
+
+(defparser (=>this-symbol s) 
+  "Return a parser matching S only.  Such a parser always fails
+for string and buffer input."
+  (item <- =item)
+  (if (and (symbolp item) (eq item s)) 
+	  (m-return item)
+	=nil))
+
+(lexical-let 
+	((punctuation 
+	  (coerce "~`!@#$%^&*()_-+={[}]|\\/?.,<>;:'\"" 'list)))
+  (defparser =punctuation 
+	"Matches any punctuation mark."
+	(item <- =item)
+	(if (in (to-char item) punctuation) 
+		(m-return item)
+	  =nil)))
+
+(defparser (=>equal what)
+  "Returns a parser which succeeds when an ITEM is EQUAL to WHAT."
+  (item <- =item)
+  (if (equal item what) (m-return item) =nil))
+
+(defparser (=>eq what)
+  "Returns a parser which succeeds when an ITEM is EQ to WHAT."
+  (item <- =item)
+  (if (eq item what) (m-return item) =nil))
+
+(defparser (=>n-equal n to)
+  "Returns a parser which succeeds when N ITEMS are equal to the list TO."
+  (items <- (=>items n))
+  (if (equal items to)
+	  (m-return items)
+	=nil))
+   
 (provide 'better-monad-parse)

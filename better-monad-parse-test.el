@@ -177,6 +177,22 @@
  "Should parse an 'a and wrap it in a list.")
 
 (assert 
+ (equal (parse/first-result 
+		 (=>maybe (=>satisfies (lambda (x) (= x 10))))
+		 '(10 11))
+		10)
+ t
+ "=maybe failed to return the correct value when the parser succeeded.")
+
+(assert 
+ (equal (parse/first-result 
+		 (=>maybe (=>satisfies (lambda (x) (= x 11))))
+		 '(10 11))
+		nil)
+ t
+ "=maybe failed to return the correct value when the parser failed.")
+
+(assert 
  (equal 
   (parse/first-result 
    (=>zero-plus-more 
@@ -211,6 +227,186 @@
    t
    "Should have parsed nil."))
 
+(assert
+ (equal (parse/first-result 
+		 (=>zero-plus-more->string =alpha)
+		 "abCdef112314")
+		"abCdef")
+ t
+ "=alpha failed to parse.")
+
+(assert 
+ (equal (parse/first-result
+		 (=>zero-plus-more->string =alpha-upper)
+		 "ABCd")
+		"ABC")
+ t
+ "=alpha-upper parsed a lowercase character.")
+
+(assert
+ (equal (parse/first-result
+		 (=>zero-plus-more->string =alpha-lower)
+		 "abcD")
+		"abc")
+ t
+ "=alpha-lower parsed a lowercase character.")
+
+(assert
+ (equal (parse/first-result
+		 (=>zero-plus-more =digit)
+		 "12345x")
+		(list "1" "2" "3" "4" "5"))
+ t
+ "=digit failed to parse as expected.")
+
+(assert 
+ (equal (parse/first-result 
+		 (=>string "test") "testit")
+		"test")
+ t
+ "=string failed for a string input.")
+
+(assert 
+ (with-temp-buffer
+   (insert "test it") 
+   (equal (parse/first-result 
+		   (=>string "test") (current-buffer))
+		  "test"))
+ t
+ "=string failed for a buffer input.")
+
+(assert 
+ (equal (parse/first-result 
+		 (=>string "test") '("test" "it"))
+		"test")
+ t
+ "=string failed for a list input.")
+
+(assert
+ (equal (parse/first-result
+		 =sign "+")
+		"+")
+ t
+ "failed to parse + as a sign")
+
+(assert
+ (equal (parse/first-result
+		 =sign "-")
+		"-")
+ t
+ "failed to parse - as a sign")
+
+(assert 
+ (equal (parse/first-result
+		 =string-of-digits->string "12345a")
+		"12345")
+ t
+ "failed to parse a string of digits")
+
+(assert 
+ (equal (parse/first-result
+		 =string-of-digits->string "a")
+		"")
+ t
+ "failed to parse an empty string of digits")
+
+(assert 
+ (equal 
+  (parse/first-result 
+   =number-char "3.14159")
+  3.14159)
+ t
+ "Failed to parse a decimal number.")
+
+(assert 
+ (equal 
+  (parse/first-result
+   =number 
+   '(1 2 3 4))
+  1)
+ t
+ "Failed to parse number from a list with =number.")
+
+(assert 
+ (equal 
+  (parse/first-result
+   =number 
+   "1.27")
+  1.27)
+ t
+ "Failed to parse number from a string with =number.")
+
+(assert
+ (equal (parse/first-result 
+		 (=>this-symbol 'x) 
+		 '(x y z))
+		'x)
+ t
+ "Failed to parse 'x with =>this-symbol.")
+
+(assert
+ (equal (parse/first-result 
+		 (=>this-symbol 'x) 
+		 '(y z))
+		nil)
+ t
+ "Failed to fail to parse 'x with =>this-symbol.")
+
+(assert (parse/first-result
+		 =punctuation "!abc")
+		"!"
+		t
+		"Failed to parse a punctuation character with =punctuation.")
+
+(assert (parse/first-result
+		 =punctuation "$abc")
+		"$"
+		t
+		"Failed to parse a punctuation character with =punctuation.")
+
+
+(assert 
+ (equal 'x (parse/first-result 
+			(=>this-symbol 'x) '(x y z)))
+ t
+ "=>this-symbol failed to parse the expected symbol.")
+
+(assert 
+ (equal nil
+		(parse/first-result (=>this-symbol 'y) '(x y z)))
+ t
+ "=>this-symbol parsed 'y when it should have failed.")
+
+(assert 
+ (equal "test" (parse/first-result (=>equal "test") 
+								   '("test" "a" "thing")))
+ t
+ "=>equal failed to parse an equal object.")
+
+(assert 
+ (equal nil (parse/first-result (=>equal "test") 
+								   '(10 "a" "thing")))
+ t
+ "=>equal failed to fail when it should have.")
+
+(assert 
+ (equal 'x (parse/first-result (=>eq 'x) 
+							   '(x "a" "thing")))
+ t
+ "=>eq failed to parse an eq object.")
+
+(assert 
+ (equal nil (parse/first-result (=>eq "test") 
+								'("test" "a" "thing")))
+ t
+ "=>eq failed to fail when it should have because strings are not EQ.")
+
+(assert 
+ (equal 
+  '(a "b" 'c "d") (parse/first-result (=>n-equal 4 '(a "b" 'c "d"))
+									  '(a "b" 'c "d" 10 11 12)))
+ t
+ "=>n-equal failed to parse EQUAL lists.")
 
 
 
