@@ -136,6 +136,18 @@
 			 (alist-equal>> ,table-name ,value ,g))
 	   ',name)))
 
+(defmacro* defunmethod/alias (name value lambda-yielding-expression)
+  "Define a method using DEFUN syntax for the dispatch value VALUE."
+  (let ((g (gensym))
+		(table-name (mk-dispatch-table-name name)))
+	`(let ((,g ,lambda-yielding-expression))
+	   (let ((*multi-method-heirarchy* ,(mk-dispatch-hierarchy-name name)))
+		 (clear-dispatch-cache))
+	   (setq ,table-name 
+			 (alist-equal>> ,table-name ,value ,g))
+	   ',name)))
+
+
 (defvar *preferred-dispatch-table* nil "Table of method dispatch resolution rules.")
 (defun prefer-method-fun (name pref-val not-pref-val)
   "Indicate that the NAMEd multimethod should prefer PREF-VAL over NOT-PREF-VAL when dispatching ambiguous inputs."

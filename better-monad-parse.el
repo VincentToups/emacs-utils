@@ -32,13 +32,16 @@ buffer-input."
 	(let ((i (buffer-input-index b)))
 	  (set-buffer-input-index b (+ i 1))))))
 
+(defstruct stateful-input (input :read-only) (state :read-only))
+
 (defun input-dispatcher (thing)
   "Dispatch function for generic parser input methods."
   (cond 
    ((stringp thing) :string)
    ((listp thing) :list)
    ((buffer-input-p thing) :buffer-input)
-   ((bufferp thing) :buffer)))
+   ((bufferp thing) :buffer)
+   ((stateful-input-p thing) :stateful-input)))
 
 ;;; Define predicate methods for detecting empty inputs.
 
@@ -49,13 +52,16 @@ buffer-input."
 (defun point-max-of (buffer)
   "Retrieve (point-max) for a BUFFER."
   (with-current-buffer buffer
-	  (point-max)))
+	(point-max)))
 
 (defunmethod input-empty? :buffer-input (b)
   (>= (buffer-input-index b) (point-max-of (buffer-input-buffer b))))
 
 (defunmethod input-empty? :buffer (b)
   (if (= 1 (point-max-of b)) t nil))
+
+(defunmethod input-empty? :stateful-input (s)
+  (input-empty? (stateful-input-input s)))
 
 (defalias 'input-emptyp #'input-empty?)
 
@@ -70,7 +76,9 @@ buffer-input."
 (defunmethod input-first :buffer-input (bi)
   (with-current-buffer (buffer-input-buffer bi)
 	(let ((i (buffer-input-index bi)))
-	(buffer-substring i (+ i 1)))))
+	  (buffer-substring i (+ i 1)))))
+(defunmethod input-first :stateful-input (s)
+  (input-first (stateful-input-input s)))
 
 (defmulti input-rest #'input-dispatcher "Get an input representing subsequent elements of an input.")
 (defunmethod input-rest :string (s)
@@ -81,6 +89,26 @@ buffer-input."
   (input-rest (create-buffer-input b)))
 (defunmethod input-rest :buffer-input (bi)
   (incr-buffer-input-index bi))
+(defunmethod input-rest :stateful-input (s)
+  (make-stateful-input :input
+					   (input-rest (stateful-input-input s))
+					   :state (stateful-input-state s)))
+
+(defun push-dispatcher (item input)
+  (input-dispatcher input))
+
+(defmulti input-push #'push-dispatcher "Add an item to the front of an input")
+(defunmethod input-push :string (item input) (concat (if (stringp item) item (format "%S" item)) input))
+(defunmethod input-push :list (item input) (cons item input))
+(defunmethod input-push :buffer (item input) (input-push item (create-buffer-input input)))
+(defunmethod input-push :buffer-input (item input) 
+  (warn "Pushing an input onto a buffer is non-functional.")
+  (with-current-buffer (buffer-input-buffer input)
+	(save-excursion 
+	  (goto-char (buffer-input-index input))
+	  (insert (if (stringp item) item (format "%S" item)))))
+  input)
+
 
 ;;; Monadic Functions:
 ;;; Parsers start with =
@@ -147,13 +175,13 @@ monadic return values of PARSER."
 						 (cdr pair)) acc)
 				rest)))))))
 
-(defun parser-return (thing)
+(defun parser-return (&rest things)
   "Produce a parser which leaves its input unmodified and which
 monadically returns THING."
   (enclose 
-   (thing)
+   (things)
    (lambda (input)
-	 (list (cons thing input)))))
+	 (mapcar (par #'cons input) things))))
 
 (defun parser-plus (p1 p2)
   "Parser monadic plus operation - returns the parser which
@@ -200,8 +228,8 @@ return the results concatenated into a string."
   (enclose 
    (parser)
    (monadic-do monad-parse
-	(item <- parser)
-	(m-return (list item)))))
+			   (item <- parser)
+			   (m-return (list item)))))
 
 (defun =>maybe (parser)
   "Produces a parser that always succeeds.  If parser succeeds,
@@ -359,27 +387,53 @@ character."
   "Monadically return the type of the input being parsed."
   (list (cons (input-dispatcher input) input)))
 
-(defun =>string (s)
+(defun =>string (&rest s)
   "Produces a parser which, if the input is a string or buffer,
 matches N characters matching the string S.  If the input is a list, then it
 succeeds only when the item is a string which matches S."
-  (lexical-let ((s s)
-				(n (length s)))
-	(monadic-do
-	 monad-parse
-	 (type <- =input-type)
-	 (if (eq :list type)
-		 (monadic-do
-		  monad-parse
-		  (item <- =item)
-		  (if (and (stringp item) (string= item s))
-			  (m-return item)
-			=nil))
-	   (monadic-do 
-		monad-parse
-		(items <- (=>items->string n))
-		(if (string= items s) (m-return items)
-		  =nil))))))
+  (if (= 1 (length s))
+	  (lexical-let* ((s (car s))
+					 (n (length s)))
+		(monadic-do
+		 monad-parse
+		 (type <- =input-type)
+		 (if (eq :list type)
+			 (monadic-do
+			  monad-parse
+			  (item <- =item)
+			  (if (and (stringp item) (string= item s))
+				  (m-return item)
+				=nil))
+		   (monadic-do 
+			monad-parse
+			(items <- (=>items->string n))
+			(if (string= items s) (m-return items)
+			  =nil)))))
+	(apply #'=>or (mapcar #'=>string s))))
+
+(defun =>stringi (&rest s)
+  "Produces a parser which, if the input is a string or buffer,
+matches N characters matching the string S.  If the input is a list, then it
+succeeds only when the item is a string which matches S."
+  (if (= 1 (length s))
+	  (lexical-let* ((s (car s))
+					 (n (length s)))
+		(monadic-do
+		 monad-parse
+		 (type <- =input-type)
+		 (if (eq :list type)
+			 (monadic-do
+			  monad-parse
+			  (item <- =item)
+			  (if (and (stringp item) (stringi= item s))
+				  (m-return item)
+				=nil))
+		   (monadic-do 
+			monad-parse
+			(items <- (=>items->string n))
+			(if (stringi= items s) (m-return items)
+			  =nil)))))
+	(apply #'=>or (mapcar #'=>stringi s))))
 
 (defvar/fun =number-from-list 
   (monadic-do 
@@ -500,5 +554,41 @@ for string and buffer input."
   (if (equal items to)
 	  (m-return items)
 	=nil))
-   
+
+(defun =>unparse (what)
+  "An unparser: put WHAT onto the input."
+  (enclose 
+   (what)
+   (lambda (input)
+	 (list (cons what
+				 (input-push what input))))))
+
+(defun/var =peek (input)
+  "Return the next ITEM without removing it from the input."
+  (list (cons (input-first input) input)))
+
+(defparser (=>items-upto predicate)
+  "Collect items until PREDICATE is true for one, which is left on the input."
+  (peek <- =peek)
+  (if (funcall predicate peek) (m-return nil)
+	(parser
+	 (item <- =item)
+	 (rest <- (=>items-upto predicate))
+	 (m-return (cons item 
+					 rest)))))
+
+(defparser (=>items-upto->string predicate)
+  "As =>ITEMS-UPTO but concatenates list of results."
+  (=>reduce-concat (=>items-upto predicate)))
+
+(defun =input (input)
+  "Get the input state as it is."
+  (list (cons input input)))
+
+(defun =>set-input (to)
+  "Set the input state to the value TO.  Monadically return T."
+  (enclose (to)
+		   (lambda (input)
+			 (list (cons t to)))))
+
 (provide 'better-monad-parse)

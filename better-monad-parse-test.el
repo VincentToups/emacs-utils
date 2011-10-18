@@ -1,4 +1,5 @@
 (require 'better-monad-parse)
+(byte-compile-file "better-monad-parse.el" t)
 
 (assert 
  (buffer-input-p (create-buffer-input (get-buffer "*scratch*"))) t "Failed to create a buffer-input ")
@@ -81,6 +82,18 @@
 		(input-first (input-rest (get-buffer "better-monad-parse.el"))))
  t
  "input-rest failed for buffer/buffer-input input.")
+
+(assert 
+ (equal (funcall (parser-return 'x) 'y)
+		(list (cons 'x 'y)))
+ t
+ "Parser return with single element failed to behave correctly.")
+
+(assert
+ (equal (funcall (parser-return 'x 'y 'z) 'y)
+		(list (cons 'x 'y) (cons 'y 'y) (cons 'z 'y)))
+ t
+ "Parser return with multiple elements failed to behave correctly.")
 
 (assert
  (equal (=nil 'anything) nil)
@@ -385,7 +398,7 @@
 
 (assert 
  (equal nil (parse/first-result (=>equal "test") 
-								   '(10 "a" "thing")))
+								'(10 "a" "thing")))
  t
  "=>equal failed to fail when it should have.")
 
@@ -408,6 +421,48 @@
  t
  "=>n-equal failed to parse EQUAL lists.")
 
+;;; tests for non-deterministic behavior.
+(assert 
+ (equal (let ((=parse-_as--a-or-b* 
+			   (parser 
+				(_ <- (=>equal "_"))
+				(m-return "a" "b"))))
+		  (funcall =parse-_as--a-or-b* "_xyz"))
+		'(("a" . "xyz") ("b" . "xyz")))
+ t
+ "Multiple-returns failed to work for a non-deterministic parser.")
+
+(assert 
+ (equal (let ((=parse-_as--a-or-b* 
+			   (parser 
+				(_ <- (=>equal "_"))
+				(first-value <- (m-return "a" "b"))
+				(=>equal "x")
+				(_ <- (=>equal "_"))
+				(m-return (list first-value "a") (list first-value "b")))))
+		  (funcall =parse-_as--a-or-b* "_x_yz"))
+		'((("b" "a") . "yz") (("b" "b") . "yz") (("a" "a") . "yz") (("a" "b") . "yz")))
+ t
+ "Multiple-returns failed to work for a non-deterministic parser after initial non-determinism.")
 
 
+(assert
+ (equal (input-push "a" "b") "ab")
+ t
+ "input-push should be concat for strings.")
+
+(assert 
+ (equal (input-push "a" '(1 2 3)) '("a" 1 2 3))
+ t
+ "Input push for a list should be cons.")
+
+(assert
+ (with-temp-buffer 
+   (input-push "this" (current-buffer))
+   (equal "this" (buffer-substring 1 5)))
+ t
+ "input-push on a buffer should insert text and warn.")
+
+(parse/first-result (=>items-upto 
+					 (par #'string= "x")) "aaaax")
 

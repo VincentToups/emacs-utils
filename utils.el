@@ -915,7 +915,7 @@ combined with the recorded element in a non-standard way using COMBINE."
   "Access element EL in an alist ALIST."
   (cadr (assoc el alist)))
 
-q(defun alist! (alist el value)
+(defun alist! (alist el value)
   "Destructively updates EL to VALUE in ALIST."
   (let ((element-holder (assoc el alist)))
 	(if element-holder (setf (cadr element-holder) value)
@@ -1787,13 +1787,14 @@ PRED to control set equality.  Defaults to EQUAL."
 
 (defun != (a b) "Not numerically equal." (not (= a b)))
 
-(defun buffer-list-of-lines ()
+(defun buffer-list-of-lines (&optional buffer)
   "Return all the lines in a buffer as alist."
-  (save-excursion 
-	(goto-char (point-min))
-	(loop
-	 collect (buffer-subline-no-properties)
-	 while (= 0 (forward-line 1)))))
+  (with-current-buffer (if buffer buffer (current-buffer))
+	(save-excursion 
+	  (goto-char (point-min))
+	  (loop
+	   collect (buffer-subline-no-properties)
+	   while (= 0 (forward-line 1))))))
 
 (defun nautilus-here ()
   "Launch nautilus here."
