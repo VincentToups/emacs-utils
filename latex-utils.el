@@ -426,4 +426,49 @@
 		(goto-char inside)
 		(indent-region start end)))))
 
+(defun* create-tex-presentation-of-files (files &optional (file "/tmp/recent-figures.tex"))
+  (let ((buf (find-file file)))
+	(with-current-buffer buf
+	  (clear-buffer)
+	  (insert "\\documentclass{beamer}
+% \\documentclass{article}
+
+% (tex-pdf-mode t)
+
+% \\mode<handout>
+\\mode<presentation>
+{
+  % or ...
+
+  \\setbeamercovered{transparent}
+  % or whatever (possibly just delete it)
+}
+
+
+\\usepackage{graphics}
+\\usepackage{natbib}
+\\usepackage{amsmath}
+\\usepackage{beamerarticle}
+\\bibliographystyle{apalike}
+
+\\def\\newblock{\\hskip .11em plus.33em minus.07em}
+
+\\useoutertheme{default}
+
+\\title{Ripple Detection}
+\\author{Vincent Toups}
+\\date{\\today}
+\\setbeamertemplate{navigation symbols}{} 
+\\setbeamertemplate{footline}[frame number]
+
+\\begin{document}
+")
+	  (loop for filename in 
+			files
+			do
+			(insert-slide-with-figure filename))
+	  (insert "
+\\end{document}"))))
+
+
 (provide 'latex-utils)

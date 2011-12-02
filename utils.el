@@ -2150,5 +2150,46 @@ accumulated at the KEYS in an ALIST which is returned."
 				 (recur (alist-cons a key val)
 						(cdr lst))))))
 
+(defun make-labeler* ()
+  "Return a list of two functions, the first of which assigns a unique label to
+each input it receives.  The second function resets the labeling scheme."
+  (lexical-let ((tbl (tbl!)))
+	(list 
+	 (lambda (item)
+	   (let-if r (tbl tbl item)
+			   r
+			   (let ((n (length (keyshash tbl))))
+				 (tbl! tbl item n)
+				 n)))
+	 (lambda () (setq tbl (tbl!))))))
+
+(defun make-labeler ()
+  "Return a function which uniquely labels (with an integer) each input."
+  (car (make-labeler*)))
+
+(defmacro with-labeler (&rest body)
+  "Provide a lexical context within which LABEL unique labels its
+input and RESET resets the labeling."
+  (with-gensyms 
+   (r-list_)
+   `(lexical-let ((,r-list_ (make-labeler*)))
+	  (labels ((label (x) (funcall (car ,r-list_) x))
+			   (reset () (funcall (cadr ,r-list_))))
+		,@body))))
+
+(defun file->string (file-name)
+  "Return the contents of `file-name` as text."
+  (let ((buf (find-file-noselect file-name)))
+	(prog1 
+		(with-current-buffer buf
+ 		  (buffer-substring-no-properties (point-min) (point-max)))
+	  (kill-buffer buf))))
+
+(defun directoryp (path)
+  "Return t is path is a directory or a symlink pointing to a directory."
+  (let ((first-attr (car (file-attributes path))))
+    (if (stringp first-attr)
+      (directoryp first-attr)
+      first-attr)))
 
 (provide 'utils)

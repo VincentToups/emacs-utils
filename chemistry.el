@@ -186,6 +186,23 @@
 	(if field (alist alist field)
 	  alist)))
 
+(defun* make-dsf-getter (field &optional (sep (rxq "=")))
+  "Return a function which retrieves FIELD from a DSF-style file name."
+  (enclose (field sep)
+		   (lambda (f)
+			 (dsf f field sep))))
+
+(defun* make-dsf-matcher (field val &key (sep (rxq "=")) (test #'equal))
+  "Return a function which checks whether a field is equal to VAL for a DSF-style file name.
+EQUAL is used by default, but can be changed via the :TEST keyword argument."
+  (enclose (field sep test val)
+		   (lambda (f)
+			 (funcall test (dsf f field sep) val))))
+
+(defun* dsf-unique-fields (files field &key (sep (rxq "=")) (test #'equal))
+  "Return the unique FIELDS in the list of dsf-style FILES."
+  (unique (mapcar (make-dsf-getter field sep) files) test))
+
 (defun* dsf-raw (str &optional (field nil) (sep (rxq "=")))
   "dsf decomposes the filename in STR into an alist."
   (let* ((parts (split-string (dsf-prep str) sep))

@@ -202,9 +202,10 @@ parses P1 and then P2, with the monadic return value of P2."
 
 ;;; Now we can use monadic binding to build some parsers.
 
-(defun =>items->string (n)
-  "Pull N items from the input (or fewer if fewer are in input) and 
-return the results concatenated into a string."
+(defun =>items->string-unspecialized (n)
+  "Pull N items from the input (or fewer if fewer are in input)
+and return the results concatenated into a string.  Handles any
+case with appropriate multimethod definitions."
   (enclose
    (n)
    (monadic-do 
@@ -212,6 +213,21 @@ return the results concatenated into a string."
 	(items-list <- (=>items n))
 	(m-return (reduce #'concat items-list)))))
 
+(defun =>items->string (n)
+  "Pull N items from the input (or fewer if fewer are in input)
+and return the results concatenated into a string.  Efficiently
+handles the string case."
+  (enclose 
+   (n)
+   (lambda (input)
+	 (if (stringp input)
+		 (let* ((in-len (length input))
+				(actual-n (min in-len n))
+				(result (substring input 0 actual-n))
+				(new-input (substring input actual-n)))
+		   (list (cons result new-input)))
+	   (=>items->string-unspecialized n)))))
+				
 (defun =>satisfies (fun)
   "Parse one item IF it FUN is true for that item."
   (enclose 
@@ -447,7 +463,7 @@ character based inputs.")
   (=>or (=>string "+") (=>string "-")))
 
 (defvar/fun =string-of-digits 
-  (=>zero-plus-more =digit))
+  (=>one-plus-more =digit))
 
 (defvar/fun =string-of-digits->string 
   (monadic-do
@@ -458,18 +474,47 @@ character based inputs.")
 
 (defvar/fun =dot (=>string "."))
 
+;; (defvar/fun =number-char
+;;   (monadic-do
+;;    monad-parse
+;;    (sign <- (=>maybe =sign))
+;;    (pre  <- =string-of-digits->string)
+;;    (dot <- (=>maybe =dot))
+;;    (rest <- =string-of-digits->string)
+;;    (m-return
+;; 	(string-to-number
+;; 	 (let ((sign (if sign sign "")))
+;; 	   (if dot (concat sign pre dot rest)
+;; 		 (concat sign pre)))))))
+
+
 (defvar/fun =number-char
   (monadic-do
    monad-parse
    (sign <- (=>maybe =sign))
-   (pre  <- =string-of-digits->string)
-   (dot <- (=>maybe =dot))
-   (rest <- =string-of-digits->string)
-   (m-return
-	(string-to-number
-	 (let ((sign (if sign sign "")))
-	   (if dot (concat sign pre dot rest)
-		 (concat sign pre)))))))
+   (pre-decimal <- (=>maybe =string-of-digits->string))
+   (maybe-dot <- (=>maybe =dot))
+   (cond
+	((and (not maybe-dot)
+		  (not pre-decimal))
+	 =nil)
+	((and maybe-dot
+		  pre-decimal)
+	 (monadic-do
+	  monad-parse
+	  (rest <- (=>maybe =string-of-digits->string))
+	  (m-return
+	   (if rest (string-to-number (concat pre-decimal "." rest))
+		 (string-to-number pre-decimal)))))
+	((and pre-decimal (not maybe-dot))
+	 (m-return (string-to-number pre-decimal)))
+	((and (not pre-decimal)
+		  maybe-dot)
+	 (monadic-do
+	  monad-parse
+	  (post-decimal <- =string-of-digits->string)
+	  (m-return (string-to-number (concat "." post-decimal)))))
+	(t =nil))))
 
 (defvar/fun =number
   (monadic-do 
@@ -581,7 +626,7 @@ for string and buffer input."
   "As =>ITEMS-UPTO but concatenates list of results."
   (=>reduce-concat (=>items-upto predicate)))
 
-(defun =input (input)
+(defun/var =input (input)
   "Get the input state as it is."
   (list (cons input input)))
 
@@ -590,5 +635,13 @@ for string and buffer input."
   (enclose (to)
 		   (lambda (input)
 			 (list (cons t to)))))
+
+(defparser (=>do-to-input fun)
+  "Apply a transformation FUN directly to the parser INPUT state, replace the result."
+  (input <- =input)
+  (lexical-let ((new-input (funcall fun input)))
+	(parser
+	 (=>set-input new-input)
+	 (m-return new-input))))
 
 (provide 'better-monad-parse)

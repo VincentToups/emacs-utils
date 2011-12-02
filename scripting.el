@@ -122,7 +122,7 @@
   (with-working-directory root
 						  (remove-spaces-in-dir (wd))
 						  (let ((sub-dirs
-								 (filter #'directoryp 
+								 (filter #'file-directory-p 
 										 (sh "ls -1"))))
 							(loop for s in sub-dirs do
 								  (print s)
