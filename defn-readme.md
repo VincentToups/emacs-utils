@@ -69,7 +69,7 @@ first and second slot of a list.
 In Clojure we could specify how to extract values from the arguments
 of a function right in the function definition:
 
-    (defn swap [[a b]] (list a b))
+    (defn swap [[a b]] (list b a))
 
 (Clojure's binding forms are always literal vectors.)  Here `swap`
 takes only one argument, but it binds two names.  The inner `[a b]`
