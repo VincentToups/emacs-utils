@@ -209,6 +209,47 @@
 
 (word: for-each {: seq qtn -- :}
   { { tail&head } dip dup { call } dip 
-    { dup length 0 = not } dip swap } loop drop drop)
+  { dup length 0 = not } dip swap } loop drop drop)
+
+(word: in {: thing what -- flag :}
+	   swap 2>in )
+
+(defstackword call-lisp-lambda 
+  (let* ((the-lambda (pop-stack))
+		 (n (pop-stack))
+		 (args (loop for i from 0 below n collect (pop-stack))))
+	(print (list the-lambda n args))
+	(push-stack (apply the-lambda (reverse args)))))
+
+(word: call-lisp-lambda1 {: lambda -- result :}
+	   1 swap call-lisp-lambda)
+
+(word: call-lisp-lambda2 {: lambda -- result :}
+	   2 swap call-lisp-lambda)
+
+(word: call-lisp-lambda3 {: lambda -- result :}
+	   3 swap call-lisp-lambda3)
+
+(defstackword quotation->lambda 
+  (lexical-let ((qtn (pop-stack)))
+	(push-stack
+	 (lambda (&rest args)
+	   (loop for a in args do
+			 (push-stack a))
+	   (push-stack qtn)
+	   (|||- call)
+	   (pop-stack)))))
+
+(word: in-how {: thing how-qt what -- res :}
+	   { quotation->lambda } dip -rot 3>in)
+
+(bivalent-stack-words split-string)
+
+(word: unique {: list how -- ulist :}
+	   quotation->lambda 2>unique)
+
+(word: unique/equal {: list -- ulist :}
+	   { equal } unique )
+
 
 (provide 'stack-words)

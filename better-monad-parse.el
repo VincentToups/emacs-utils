@@ -644,4 +644,11 @@ for string and buffer input."
 	 (=>set-input new-input)
 	 (m-return new-input))))
 
+(defparser (=>number equal-to)
+  "Parse an expression equal to the specific number EQUAL-TO.  Fail otherwise."
+  (n <- =number)
+  (if (= n equal-to)
+	  (m-return n)
+	=nil))
+
 (provide 'better-monad-parse)
