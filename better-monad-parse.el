@@ -651,4 +651,15 @@ for string and buffer input."
 	  (m-return n)
 	=nil))
 
+(defmacro defparser-w/delim (nameish delim-parser &rest expressions)
+  "Defines a parser as in DEFPARSER where each term is separated by the DELIM-PARSER."
+  (with-gensyms 
+   (d_)
+   `(lexical-let ((,d_ ,delim-parser))
+	  (defparser ,nameish ,@(intersperse d_ expressions)))))
+
+(defun =>alist>> (&rest args)
+  "Returns the parser which returns the ALIST created by passing ARGS to ALIST>>."
+  (parser-return (apply #'alist>> args)))
+
 (provide 'better-monad-parse)
