@@ -139,6 +139,9 @@ transforms it out of other such functions.")
 		(domonad monad-state ,monad-forms ,@body)
 		,state))))
 
+(defun seq-bind (v f) (apply #'append (mapcar f v)))
+(defun seq-return (v) (list v))
+
 (defvar monad-seq 
   (tbl! 
    :m-zero (list)

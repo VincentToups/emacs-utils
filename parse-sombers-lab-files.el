@@ -39,5 +39,15 @@
 	 (=>set-input new)
 	 (m-return new))))
 
+(defparser =stim-desc
+  (current <- =number)
+  =_
+  (pulses <- =number)
+  =_
+  (freq <- =number)
+  (=>maybe =_)
+  (trial <- =maybe-letter->trial)
+  (m-return (alist>> :trial trial :current current :pulses pulses :freq freq :type "stim")))
+
 
 (provide 'parse-sombers-lab-files)

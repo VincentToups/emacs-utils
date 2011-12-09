@@ -91,8 +91,9 @@ NIL."
   (let* ((h (sxhash key))
 		 (ix (mod h (ptbl-n-buckets tbl)))
 		 (buckets (ptbl-buckets tbl))
-		 (bucket (ra:list-ref buckets ix)))
-	(ptbl-get-from-bucket bucket key (ptbl-test tbl))))
+		 (bucket (ra:list-ref buckets ix))
+		 (r (ptbl-get-from-bucket bucket key (ptbl-test tbl))))
+	(if r r or-value)))
 
 (defun ptbl-keys (tbl)
   "Return a list of all keys in the persistent hash table TBL.

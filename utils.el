@@ -1187,10 +1187,10 @@ PRED to control set equality.  Defaults to EQUAL."
 
 (defun buffer-all-lines ()
   "Returns all the lines in a buffer as a list."
-  (save-excursion (goto-char (point-min))
+  (reverse (cdr (reverse (save-excursion (goto-char (point-min))
 				  (loop collect
 						(buffer-line)
-						while (= (forward-line 1) 0))))
+						while (= (forward-line 1) 0)))))))
 
 
 (defun org-line->list (str)
@@ -2191,5 +2191,7 @@ input and RESET resets the labeling."
     (if (stringp first-attr)
       (directoryp first-attr)
       first-attr)))
+
+
 
 (provide 'utils)

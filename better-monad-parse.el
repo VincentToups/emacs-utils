@@ -662,4 +662,14 @@ for string and buffer input."
   "Returns the parser which returns the ALIST created by passing ARGS to ALIST>>."
   (parser-return (apply #'alist>> args)))
 
+(defun =>. (f &rest args)
+  "Return F on ARGS."
+  (parser-return (apply f args)))
+
+(defalias '=> #'parser-return)
+
+(defun parser-return. (f &rest args)
+  "Return F on ARGS."
+  (parser-return (apply f args)))
+
 (provide 'better-monad-parse)
