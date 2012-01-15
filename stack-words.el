@@ -201,7 +201,7 @@
 
 (defstackword swons (|||- swap cons))
 
-(bivalent-stack-words append suffix prefix elt concat)
+(bivalent-stack-words append suffix prefix elt concat string= equal eq eql =)
 (univalent-stack-words listp not)
 
 (word: odd? 1>oddp)
@@ -251,5 +251,7 @@
 (word: unique/equal {: list -- ulist :}
 	   { equal } unique )
 
+(word: unique/string= {: list -- ulist :}
+       { string= } unique )
 
 (provide 'stack-words)

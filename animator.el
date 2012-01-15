@@ -128,7 +128,7 @@
 					 (cons doc arg-names))))
 	`(defun ,interface-name ,arg-names ,doc
 	   (animator-send (format ,(create-animator-format-string name-string arg-names)
-					  ,@arg-names)))))
+							  ,@arg-names)))))
 
 (defmacro* def-numeric-animator-primitive-alt-name (interface-name name &optional doc &rest arg-names)
   (let ((name-string (format "%s" name))
@@ -137,7 +137,7 @@
 					 (cons doc arg-names))))
 	`(defun ,interface-name ,arg-names ,doc
 	   (animator-send (format ,(create-animator-format-string name-string arg-names)
-					  ,@arg-names)))))
+							  ,@arg-names)))))
 
 
 (def-numeric-animator-primitive thick "Set animator line thickness"
@@ -152,12 +152,14 @@
 
 (def-numeric-animator-primitive rect "Fill an animator rectangle with the current color." x y w h)
 
-(with-flush/frame (animator-rect 0 0 .25 .25))
 
 
 
 
-(dont-do (with-flush/frame (animator-text 0 0 "HOLY SHEET!"))
+
+(dont-do 
+ (require 'animator)
+(with-flush/frame (animator-text 0 0 "HOLY SHEET!"))
 		 (loop for i from 1 to 1000000 do
 			   (sleep-for 0 10)
 			   (with-flush/frame 
@@ -165,18 +167,8 @@
 				(animator-text 0
 							   (* 50.0 (sin (/ i 100.0)))
 							   "HOLY SHEEET!!!")))
+(with-flush/frame (animator-rect 0 0 .25 .25))
 
-		 (with-animator 
-		  (with-flush/frame (text 0 0 "SUP DAWG")))
-
-		 (with-animator
-		  (with-flush/frame 
-		   (animator-poly '(-0.5 -0.5) '(-0.5 0.5) '(0.5 0.5) '(0.5 -0.5))
-		   (with-animator-color "blue"
-								(animator-poly '(-0.25 -0.25) '(-0.25 0.25) '(0.25 0.25) '(0.25 -0.25)))
-		   (animator-poly '(-0.125 -0.125) '(-0.125 0.125) '(0.125 0.125) '(0.125 -0.125))))
-		 (with-animator 
-		  (color "green"))
 		 )
 
 (provide 'animator)

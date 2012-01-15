@@ -33,15 +33,27 @@ buffer-input."
 	  (set-buffer-input-index b (+ i 1))))))
 
 (defstruct stateful-input (input :read-only) (state :read-only))
+(defun make-input-stateful (input &optional initial-state)
+  (make-stateful-input :input input :state initial-state))
 
-(defun input-dispatcher (thing)
-  "Dispatch function for generic parser input methods."
-  (cond 
-   ((stringp thing) :string)
-   ((listp thing) :list)
-   ((buffer-input-p thing) :buffer-input)
-   ((bufferp thing) :buffer)
-   ((stateful-input-p thing) :stateful-input)))
+(defun stateful-input-store/alist (s k v)
+  (make-stateful-input :input 
+					   (stateful-input-input s)
+					   :state
+					   (alist>> (stateful-input-state s) k v)))
+
+(defun stateful-input-fetch/alist (s k &optional or-value)
+  (alist-or (stateful-input-state s) k or-value))
+
+(defun input-dispatcher (&rest args)
+  (let ((thing (car args)))
+	"Dispatch function for generic parser input methods."
+	(cond 
+	 ((stringp thing) :string)
+	 ((listp thing) :list)
+	 ((buffer-input-p thing) :buffer-input)
+	 ((bufferp thing) :buffer)
+	 ((stateful-input-p thing) :stateful-input))))
 
 ;;; Define predicate methods for detecting empty inputs.
 
@@ -93,6 +105,36 @@ buffer-input."
   (make-stateful-input :input
 					   (input-rest (stateful-input-input s))
 					   :state (stateful-input-state s)))
+
+(defmulti store-uncurried #'input-dispatcher "Uncurried storage multimethod.")
+(defunmethod store-uncurried :stateful-input (s k v)
+  (list (cons v (stateful-input-store/alist s k v))))
+($ :list derives-from :non-stateful-input)
+($ :buffer derives-from :non-stateful-input)
+($ :string derives-from :non-stateful-input)
+(defunmethod store-uncurried :non-stateful-input (s k v)
+  (store-uncurried (make-input-stateful s) k v))
+
+(defun =>store (k v)
+  "Parser which stores the value V at K in the STATEFUL portion of the input."
+  (enclose 
+   (k v)
+   (lambda (s) (store-uncurried s k v))))
+
+(defmulti fetch-uncurried #'input-dispatcher "Uncurried fetch multimethod.")
+(defunmethod fetch-uncurried :stateful-input (s k &optional or-value)
+  (list (cons (stateful-input-fetch/alist s k or-value) s)))
+(defunmethod fetch-uncurried :non-stateful-input (s k &optional or-value)
+  (fetch-uncurried (make-input-stateful s) k or-value))
+
+(defun =>fetch (k &optional or-value)
+  "Parser which fetches the value at K from the parse state.
+Returns NIL if no such value is present, OR-VALUE if not, which
+defaults to nil."
+  (enclose (k or-value)
+		   (lambda (s)
+			 (fetch-uncurried s k or-value))))
+
 
 (defun push-dispatcher (item input)
   (input-dispatcher input))
@@ -651,12 +693,12 @@ for string and buffer input."
 	  (m-return n)
 	=nil))
 
-(defmacro defparser-w/delim (nameish delim-parser &rest expressions)
-  "Defines a parser as in DEFPARSER where each term is separated by the DELIM-PARSER."
-  (with-gensyms 
-   (d_)
-   `(lexical-let ((,d_ ,delim-parser))
-	  (defparser ,nameish ,@(intersperse d_ expressions)))))
+;; (defmacro defparser-w/delim (nameish delim-parser &rest expressions)
+;;   "Defines a parser as in DEFPARSER where each term is separated by the DELIM-PARSER."
+;;   (with-gensyms 
+;;    (d_)
+;;    `(lexical-let ((,d_ ,delim-parser))
+;; 	  (defparser ,nameish ,@(intersperse d_ expressions)))))
 
 (defun =>alist>> (&rest args)
   "Returns the parser which returns the ALIST created by passing ARGS to ALIST>>."
@@ -671,5 +713,6 @@ for string and buffer input."
 (defun parser-return. (f &rest args)
   "Return F on ARGS."
   (parser-return (apply f args)))
+
 
 (provide 'better-monad-parse)

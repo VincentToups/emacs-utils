@@ -1188,9 +1188,9 @@ PRED to control set equality.  Defaults to EQUAL."
 (defun buffer-all-lines ()
   "Returns all the lines in a buffer as a list."
   (reverse (cdr (reverse (save-excursion (goto-char (point-min))
-				  (loop collect
-						(buffer-line)
-						while (= (forward-line 1) 0)))))))
+										 (loop collect
+											   (buffer-line)
+											   while (= (forward-line 1) 0)))))))
 
 
 (defun org-line->list (str)
@@ -1208,7 +1208,7 @@ PRED to control set equality.  Defaults to EQUAL."
 (defun* capture-shell (command &optional (args ""))
   "Execute a shell command and return the output as a list of strings."
   (let* ((command-part (car (split-string command " ")))
-		 (args (concat (replace-regexp-in-string command-part "" command)
+		 (args (concat (join (cdr (split-string command " ")) " ")
 					   args)))
 	(chomp-lines (split-string (with-temp-buffer 
 								 (call-process-shell-command command-part nil 
@@ -1216,6 +1216,7 @@ PRED to control set equality.  Defaults to EQUAL."
 															 nil args)
 								 (accept-process-output)
 								 (buffer-substring (point-min) (point-max))) lb))))
+
 (defun* sh (command &optional (args ""))
   "sh command args - Send a command to the shell, get back the result as a list of strings."
   (capture-shell command args))
@@ -2189,9 +2190,12 @@ input and RESET resets the labeling."
   "Return t is path is a directory or a symlink pointing to a directory."
   (let ((first-attr (car (file-attributes path))))
     (if (stringp first-attr)
-      (directoryp first-attr)
+		(directoryp first-attr)
       first-attr)))
 
-
+(defmacro defun-as (name val)
+  "Set the function value of the symbol NAME (not evaluated, must be a symbol) to VAL."
+  (assert (symbolp name) (name) "NAME must be a symbol.  Got %s.")
+  `(defalias ',name ,val))
 
 (provide 'utils)
