@@ -186,5 +186,20 @@ An error is thrown when no matches are found."
   (let ((name (gensym "MATCH-LAMBDA-NAME-")))
 	`(function (lambda (,name) (match ,name ,@forms)))))
 
+(defun length=1 (lst)
+  "Returns T when LST has one element."
+  (and (consp lst)
+	   (not (cdr lst))))
+
+(defpattern list-rest (&rest patterns)
+  (if (length=1 patterns)
+	  `(? #'listp ,(car patterns))
+	  (let ((pat (car patterns))
+			(pats (cdr patterns)))
+		`(and (funcall #'car ,pat)
+			  (funcall #'cdr 
+					   (list-rest ,@pats))))))
+
+
 (provide 'shadchen)
 
