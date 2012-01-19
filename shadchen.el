@@ -129,11 +129,33 @@ two terms, a function and a match against the result.  Got
   `(setf (gethash ',name *extended-patterns*)
 		 #'(lambda ,args ,@body)))
 
+(defun match-literal-string (match-expression match-value body)
+  `(if (string= ,match-expression ,match-value) 
+	   (progn ,@body)
+	   *match-fail*))
+
+(defun match-literal-number (match-expression match-value body)
+  `(if (= ,match-expression ,match-value)
+	   (progn ,@body)
+	   *match-fail*))
+
+(defun match-literal-keyword (match-expression match-value body)
+  `(if (eq ,match-expression ,match-value)
+	   (progn ,@body)
+	   *match-fail*))
+
+
 (defmacro* match1 (match-expression match-value &body body)
   (cond 
    ((non-keyword-symbol match-expression)
 	`(let ((,match-expression ,match-value))
 	   ,@body))
+   ((stringp match-expression) 
+	(match-literal-string match-expression match-value body))
+   ((numberp match-expression)
+	(match-literal-number match-expression match-value body))
+   ((keywordp match-expression)
+	(match-literal-keyword match-expression match-value body))
    ((extended-patternp (car match-expression)) 
 	(match-extended-pattern-expander match-expression match-value body))
    ((listp match-expression)
@@ -199,6 +221,26 @@ An error is thrown when no matches are found."
 		`(and (funcall #'car ,pat)
 			  (funcall #'cdr 
 					   (list-rest ,@pats))))))
+
+(defun cl-struct-prepend (s)
+  (intern (format "cl-struct-%s" s)))
+
+(defun make-cl-struct-accessor (struct-name slot) 
+  (intern (format "%s-%s" struct-name slot)))
+
+
+(defpattern struct (struct-name &rest fields)
+  `(and
+	(? #'vectorp)
+	(? #'(lambda (x) (> (length x) 0)))
+	(? #'(lambda (o)
+		   (eq (elt o 0) ',(cl-struct-prepend struct-name))))
+	,@(loop for f in fields collect
+			`(funcall 
+			  #',(make-cl-struct-accessor struct-name (car f))
+			  ,(cadr f)))))
+
+
 
 
 (provide 'shadchen)
